@@ -1,0 +1,256 @@
+#!/usr/bin/perl -w
+use strict;
+use Getopt::Std qw( getopts );
+
+( my $Script = $0 ) =~ s{^.*/}{};
+my $time = time;
+
+my ($cache) = do {
+    ## admin_user (see SGE_ROOT/SGE_CELL/common/bootstrap)
+    my $admin = "cfdadmin";
+    my $root  = "n1ge6";      # sge_root
+
+    $ENV{SGE_ROOT} ||= "/opt/$root";    # sge_root
+    $ENV{SGE_CELL} ||= "default";       # sge_cell
+
+    my ($home) = ( getpwnam($admin) )[7] || "";
+
+    grep { -f } map { join "/" => @$_, "site", "license.cache" } (
+        [ $ENV{SGE_ROOT}, $ENV{SGE_CELL} ],    # standard location
+        [ $home, $root, $ENV{SGE_CELL} ],      # extra safety
+    );
+};
+
+# ------------------------------------------------------------------------
+package LCache;
+
+{
+    my @tags    = qw( total limit global extern intern waiting );
+    my $re_tags = join( "|" => @tags );
+
+    sub new {
+        my $caller = shift;
+        my $file   = shift || $cache;
+
+        my $self = {
+            ( map { $_ => {} } qw( -alias -license ) ),
+            ( map { $_ => '' } qw( -admin -date -host -age) )
+        };
+
+        my $age = sub {
+            my ( $a, $b ) = @_;
+            my $diff = ( $a - $b );
+            sprintf "%d:%02d:%02d",     # format into hh:mm:ss
+              ( int $diff / 3_600 ),    # hh
+              ( ( int $diff / 60 ) % 60 ),    # mm
+              ( $diff % 60 );                 # ss
+        };
+
+        local @ARGV = $file;
+        for (<>) {
+            my ( $user, $tag, $mach, $license, $count, $alias, $full );
+
+            if (m{<(admin|host)>\s*(.+?)\s*</\1>}) {
+                my ( $k, $v ) = ( $1, $2 );
+                $self->{"-$k"} = $v;
+            }
+            elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
+                $self->{-age} = $age->( $time, $2 );
+                $self->{-date} = $3;
+            }
+            elsif (m{<(alias) \s+ .*? name=\"(.+?)\"\s*>\s*(.+?)\s*</\1>}x) {
+                $self->{-alias}{$2} = $3;
+            }
+            elsif ( ( $tag, $license, $count ) =
+                m{^(\S+?) [:=]+ (\S+?) [:=]+ (\d+?) \s*$}x )
+            {
+                $self->{-license}{$license} ||= {
+                    -where => {},
+                    map { $_ => 0 } ( "-managed", @tags ),
+                };
+
+                if ( $tag =~ m{^($re_tags)$} ) {
+                    $self->{-license}{$license}{$tag} = $count;
+                    $self->{-license}{$license}{-managed}++ if /:/;
+                }
+                elsif ( $tag =~ m{[*@]} ) {    ## 'user@host' or 'user*'
+                    $self->{-license}{$license}{-where}{$tag} = $count;
+                }
+            }
+        }
+
+        bless $self => ref($caller) || $caller;
+    }
+
+    sub query {
+        my $self = shift;
+        my @args = @_;
+
+        my %license = %{ $self->{-license} };
+        return %license;
+    }
+}
+
+sub dump {
+    use Data::Dumper;
+    print Dumper( $_[0] );
+}
+
+sub unalias {
+    my $self = shift;
+    grep { defined }
+      map { $self->{-license}{$_} ? $_ : $self->{-alias}{$_} || undef } @_;
+}
+
+sub available {
+    my $self = shift;
+    sort keys %{ $self->{-license} };
+}
+
+# ------------------------------------------------------------------------
+
+package main;
+import LCache;
+
+our ( $VERSION, $DATE ) = do {
+    my ( $ver, $date ) =
+      q{$Id: qlic,v 1.7 2005/11/15 10:16:14 cfdadmin Exp $} =~
+      m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
+    $date =~ s{/}{-}g;    # ISO-formatted
+
+    ( $ver, $date );
+};
+
+# ------------------------------------------------------------------------
+sub usage {
+    $! = 0;               # clean exit
+    warn "@_\n" if @_;
+    die <<"USAGE";
+usage:
+    $Script [OPTION]
+
+with options:
+  -a       combined with '-u' = include active jobs
+  -c FILE  alternative file to parse
+  -d       dump license cache in raw  format
+  -D       dump license cache in perl format
+  -f       display free licenses only
+  -q       display free licenses via qhost query
+  -u       license usage via 'lacct'
+  -w       show who/where ('*' indicates waiting jobs)
+  -h       this help
+
+* extract / display information for the GridEngine license cache
+  <$cache>
+
+version $VERSION ($DATE)
+copyright (c) 2003-05 <Mark.Olesen\@ArvinMeritor.com>
+
+Licensed and distributed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 2.5 License.
+http://creativecommons.org/licenses/by-nc-sa/2.5
+USAGE
+}
+
+# -------------------------------------------------------------------------
+my %opt;
+getopts( 'hac:Ddfquw', \%opt ) or usage();
+$opt{h} and usage();
+
+if ( $opt{u} ) {
+    my @query = "lacct";
+    push @query, map { $opt{$_} ? "-$_" : () } qw( a w );
+    exec @query;
+    exit 2;
+}
+
+if ( $opt{d} ) {
+    local @ARGV = $opt{c} || $cache;
+    print while <>;
+    exit;
+}
+
+if ( $opt{q} ) {
+    my %global =
+      map  { /^\s+gc:(\S+?)=(\d\S*)\s*$/ }
+      grep { /^global/ ... /^\S/ } qx{qhost -F};
+    $_ += 0 for values %global;
+
+    for ( sort keys %global ) {
+        my $free = $global{$_} + 0;    # normalize as integers
+        print "$_=$free\n";
+    }
+    exit;
+}
+
+my $linfo = LCache->new( $opt{c} );
+$linfo->dump() if $opt{D};
+
+my %license = $linfo->query();
+
+#
+# stringify hash ref as keyword=value
+#
+sub kv {
+    map {
+        my $ref = $_;
+        ref $ref ? map { "$_=$ref->{$_}" } sort keys %$ref : ()
+    } @_;
+}
+
+my @list;
+
+format =
+# name      total limit global extern intern wait free
+@<<<<<<<<<<< @>>>>> @>>>> @>>>>> @>>>>> @>>> @>>>
+@list
+.
+
+unless ( $opt{f} or $opt{w} ) {
+    my @info = qw( host age );
+    my ($len) = sort { $b <=> $a } map { length } @info;
+
+    print map {
+        my $k = sprintf "%-${len}s", $_;
+        my $v = $linfo->{"-$_"};
+        $v ? "$k = $v\n" : ();
+    } @info;
+
+    print "\n";
+
+    @list = qw( feature total limit extern intern wait free );
+    write;
+    s/./-/g for @list;
+    write;
+}
+
+for my $feature ( sort keys %license ) {
+    my $count = $license{$feature} || {};
+    if ( $opt{f} ) {
+        my $free = $count->{global} || 0;
+        print "$feature=$free\n" if $free;
+    }
+    elsif ( $opt{w} ) {
+        @list = kv( $count->{-where} );
+        if (@list) {
+            my $fmt = "%-11s";
+            my $indent = sprintf "\n$fmt", '';
+            printf $fmt, $feature;
+            print join( $indent => @list ), "\n";
+        }
+    }
+    else {
+        @list = (
+            $feature, @{$count}{qw( total limit extern intern waiting global )}
+        );
+        unless ( $license{$feature}{-managed} ) {
+            $_ = "*" for $list[4];
+        }
+
+        # '-' is easier to read than '0'
+        $_ ||= '-' for @list;
+
+        write;
+    }
+}
+# ------------------------------------------------------------------------

@@ -1,0 +1,31 @@
+# git-ls-files --others --exclude-from=.git/info/exclude
+# Lines that start with '#' are comments.
+
+# editor and misc backup files - anywhere
+*~
+.*~
+*.orig
+*.bak
+\#*\#
+
+# CVS recovered versions - anywhere
+.\#*
+
+# objects and archives - anywhere
+*.[oa]
+*.la
+*.so
+*.jar
+
+# except jar files in the main directory
+!/*.jar
+
+# source packages - anywhere
+*.tar.bz2
+*.tar.gz
+*.tgz
+
+# in case we want our gh-pages branch close at hand
+/gh-pages
+
+# end-of-file
