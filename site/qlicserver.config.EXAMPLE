@@ -19,10 +19,10 @@
    |
    | Resources that are not served and not derived are internal resources
    + -->
- <resources>
+ <resources type="overwrite">
   <!-- cfd applications -->
    <resource name="foam"/>
-   <resource name="starjob" served="starpar" urgency="100" note="STAR-CD parallel starter"/>
+   <resource name="starjob" served="starpar" type="job" urgency="100" note="STAR-CD parallel starter"/>
    <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
    <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
    <derived name="starcd" urgency="100">
@@ -31,21 +31,11 @@
    </derived>
 
   <!-- fea applications -->
-   <resource name="abaqus" served="abaqus"/>
+   <resource name="abaqus" served="abaqus" type="job"/>
    <resource name="hyper" served="GridWorks" limit="-4200"/>
-   <resource name="nastran1" served="NASTRAN" from="auglic1" note="leased"/>
-   <resource name="nastran2" served="NASTRAN" from="auglic2" note="purchased"/>
-   <derived name="nastran">
-    <element>nastran1</element>
-    <element>nastran2</element>
-   </derived>
-<!--
-   The daemon seems to be unreliable, don't bother querying for this feature.
-   Manage like an internal resource and let the user worry about possible
-   external license use themselves.
-   <resource name="thomat" served="JT" note="abaqus high temperature modelling"/>
--->
-   <resource name="thomat" note="abaqus high temperature modelling"/>
+   <resource name="nastran" served="NASTRAN"/>
+   <resource name="nastran1" note="leased"/>
+   <resource name="nastran2" note="purchased"/>
 
   <!-- other applications -->
    <resource name="gtpower" served="GTpowerX" limit="4"/>

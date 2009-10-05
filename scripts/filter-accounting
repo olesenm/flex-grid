@@ -1,0 +1,124 @@
+#!/usr/bin/perl -w
+use strict;
+use Getopt::Std qw( getopts );
+use Time::Local qw( timelocal );
+
+my ($releaseDate) = qw( 2009-10-02 );
+
+( my $Script = $0 ) =~ s{^.*/}{};
+# -------------------------------------------------------------------------
+sub usage {
+    $! = 0;    # clean exit
+    warn "@_\n" if @_;
+    die <<"USAGE";
+usage:
+    $Script [OPTION] file1 [ .. fileN ]
+
+with options:
+  -b YYYY[-MM[-DD]]
+          begin date for accounting (job end_time  > DATE 2 A.M.)
+  -e YYYY[-MM[-DD]]
+          end date for accounting   (job end_time <= DATE 2 A.M.)
+  -h      usage
+
+Extract portions of the GridEngine accounting(5) file according to the
+job end_time. For example,
+    $Script -b 2008-01-01 -e 2009 ...
+extracts the accounting for jobs that finished running in 2008.
+
+The value of 2 A.M. avoids problems that daylight savings time might
+otherwise cause.
+
+version ($releaseDate)
+copyright (c) 2009 <Mark.Olesen\@emconTechnologies.com>
+
+Licensed and distributed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 3.0 License.
+http://creativecommons.org/licenses/by-nc-sa/3.0
+USAGE
+}
+
+# -------------------------------------------------------------------------
+my %opt;
+getopts( "hb:e:", \%opt ) or usage();
+usage() if $opt{h};
+
+@ARGV or usage();
+
+for (@ARGV) {
+    -f $_ or die "no file '$_'\n";
+
+    ## handle compressed files transparently
+    if (/\.bz2$/) {
+        $_ = qq{bzip2 -dc "$_"|};
+    }
+    elsif (/\.gz$/) {
+        $_ = qq{gzip -dc "$_"|};
+    }
+}
+
+for (qw( b e )) {
+    if ( $opt{$_} ||= 0 ) {
+        my ( $yy, $mm, $dd );
+
+        if ( $opt{$_} =~ /^(\d{2,4})-(\d{1,2})-(\d{1,2})$/ ) {
+            ## YYYY-MM-DD
+            ( $yy, $mm, $dd ) = ( $1, $2, $3 );
+        }
+        elsif ( $opt{$_} =~ /^(\d{2,4})-(\d{1,2})$/ ) {
+            ## YYYY-MM
+            ( $yy, $mm ) = ( $1, $2 );
+        }
+        elsif ( $opt{$_} =~ /^(\d{2,4})$/ ) {
+            ## YYYY
+            ($yy) = ($1);
+        }
+        else {
+            usage("invalid date format: '$opt{$_}'");
+        }
+
+        # treat missing month/day as '1'
+        $mm ||= 1;
+        $dd ||= 1;
+
+        # convert from YYYY-MM-DD to epoch,
+        # start at 2am - avoid problems with daylight savings time
+        $opt{$_} = timelocal( 0, 0, 2, $dd, $mm - 1, $yy );    # month (0..11)
+    }
+}
+
+$opt{b} or $opt{e} or usage("must specify at least one of -b or -e");
+
+if ( $opt{e} and $opt{b} >= $opt{e} ) {
+    usage("-b DATE must less than -e DATE");
+}
+
+my $fileCount;
+while (<>) {
+    if (/^\s*#/) {
+        ## pass-thru comments, but only for the first file
+        print unless $fileCount;
+        next;
+    }
+
+    my ($endtime) = ( split /:/ )[10];
+
+    # only allow things that ran (endtime non-zero)
+    # and that are within the filter limits
+    if (    $endtime
+        and ( $opt{b} ? ( $endtime > $opt{b} )  : 'okay' )
+        and ( $opt{e} ? ( $endtime <= $opt{e} ) : 'okay' ) )
+    {
+        print;
+    }
+}
+continue {
+    $fileCount++ if eof;
+}
+
+__END__
+
+FORMAT - see accounting(5)
+08  submission_time
+09  start_time
+10  end_time

@@ -22,7 +22,9 @@ my $config = {
 # ------------------------------------------------------------------------
 # utils
 
-# calculate age from epochs
+#
+# calculate age from an epoch value
+#
 sub age {
     my ( $a, $b ) = @_;
     my $diff = ( $a - $b );
@@ -39,26 +41,36 @@ sub age {
       ( $diff % 60 );               # ss
 }
 
-# simple attribute parser
+#
+# change hash references to a comma-delimited string of key=value entries
+#
+sub hashRefToString {
+    map {
+        my $ref = $_;
+        ref $ref ? map { "$_=$ref->{$_}" } sort keys %$ref : ()
+    } @_;
+}
+
+#
+# extract attrib="value" ... attrib="value"
+#
 sub parseXMLattrib {
-    my $str = shift;
+    my $str = shift || '';
     my %attr;
 
-    if ( defined $str ) {
-        ## get attr="value"
-        for ($str) {
-            while (s{^\s*(\w+)=\"([^\"]*)\"}{}s
-                or s{^\s*(\w+)=\'([^\']*)\'}{}s )
-            {
-                $attr{$1} = $2;
-            }
-        }
+    while ($str =~ s{^\s*(\w+)=\"([^\"]*)\"}{}s
+        or $str =~ s{^\s*(\w+)=\'([^\']*)\'}{}s )
+    {
+        $attr{$1} = $2;
     }
 
     %attr;
 }
 
-package LCache;
+# ------------------------------------------------------------------------
+# processing of qlicserver.xml output
+#
+package qlicCache;
 
 sub new {
     my $caller = shift;
@@ -73,59 +85,62 @@ sub new {
 
     local $_ = do { local ( @ARGV, $/ ) = $file; <>; };
 
-    # strip out all comments
+    # strip out all xml comments
     s{<!--.*?-->\s*}{}sg;
 
     # get the header section
     s{^(.+?)</query>}{}s or return;
+    my $header = $1;
 
-    my $txt = $1;
-    for ( split m{\n+}, $txt ) {
-        if (m{<(host)>\s*(.+?)\s*</\1>}) {
-            my ( $k, $v ) = ( $1, $2 );
-            $self->{"-$k"} = $v;
+    for ($header) {
+        if (m{<host (?:\s+([^<>]*))? > \s*(.+?)\s* </host>}sx) {
+            my ( $attr, $content ) = ( $1, $2 );
+            $self->{-host} = $content;
         }
-        elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
-            $self->{-age} = main::age( $time, $2 );
-            $self->{-date} = $3;
+        if (m{<time (?:\s+([^<>]*))? > \s*(.+?)\s* </time>}sx) {
+            my ( $attr, $content ) = ( $1, $2 );
+            my %attr = main::parseXMLattrib($attr);
+
+            $self->{-age} = main::age( $time, $attr{epoch} ) if $attr{epoch};
+            $self->{-date} = $content;
         }
     }
 
     # only retain the <resources> contents
     s{^.*?<resources>}{}s and s{</resources>.*$}{}s or return;
 
-    ## process <resource .../> and <resource ...></resource>
-    while (s{<resource\s+([^<>]+)/>}{}s
-        or s{<resource\s+([^<>]+)>\s*</resource>}{}s )
-    {
-        my %hash = main::parseXMLattrib($1);
-        my $name = delete $hash{name};
+    ## process <resource .../>
+    while (s{<resource (?:\s+([^/<>]*))? />}{}sx) {
+        my ($attr) = ($1);
+        my %attr   = main::parseXMLattrib($attr);
+        my $name   = delete $attr{name};
 
         if ( defined $name ) {
-            for my $k ( keys %hash ) {
-                $self->{-rc}{$name}{$k} = $hash{$k} || 0;
+            for ( keys %attr ) {
+                $self->{-rc}{$name}{$_} = $attr{$_} || 0;
             }
         }
     }
 
     ## process <resource ...> CONTENT </resource>
-    while (s{<resource\s+([^<>]+)>(.+?)</resource>}{}s) {
+    while (s{<resource (?:\s+([^<>]*))? > \s* (.*?) \s* </resource>}{}sx) {
         my ( $attr, $content ) = ( $1, $2 );
-        my %hash = main::parseXMLattrib($attr);
-        my $name = delete $hash{name};
+        my %attr = main::parseXMLattrib($attr);
+        my $name = delete $attr{name};
 
         if ( defined $name ) {
-            for my $k ( keys %hash ) {
-                $self->{-rc}{$name}{$k} = $hash{$k} || 0;
+            for ( keys %attr ) {
+                $self->{-rc}{$name}{$_} = $attr{$_} || 0;
             }
         }
 
         ## process <user ...> COUNT </user>
-        while ( $content =~ s{<user\s+([^<>]+)>(\d+)</user>}{}s ) {
+        while ( $content =~ s{<user (?:\s+([^<>]*))? >\s*(\d+)\s*</user>}{}sx )
+        {
             my ( $attr, $count ) = ( $1, $2 );
-            my %hash = main::parseXMLattrib($attr);
-            my $user = delete $hash{name};
-            my $host = delete $hash{host};
+            my %attr = main::parseXMLattrib($attr);
+            my $user = delete $attr{name};
+            my $host = delete $attr{host};
 
             if ( defined $user ) {
                 if ( defined $host ) {
@@ -144,7 +159,6 @@ sub new {
 
 sub query {
     my $self = shift;
-    my @args = @_;
     %{ $self->{-rc} };
 }
 
@@ -158,7 +172,10 @@ sub available {
     sort keys %{ $self->{-rc} };
 }
 
-package LLimit;
+# ------------------------------------------------------------------------
+# processing of qlicserver.limits FILE or DIRECTORY
+#
+package qlicLimits;
 
 sub new {
     my $caller     = shift;
@@ -169,8 +186,8 @@ sub new {
     my $fileString;
     if ( defined $diskValues and -f $diskValues ) {
         $fileString = do {
-            local *FILE;
-            local $/;
+            local ( *FILE, $/ );
+
             if ( open FILE, $diskValues ) {
                 <FILE>;
             }
@@ -204,12 +221,12 @@ sub new {
         s{<!--.*?-->\s*}{}sg;
 
         ## process <resource .../> and <resource ...></resource>
-        while (s{<resource\s+([^<>]+)/>}{}s
-            or s{<resource\s+([^<>]+)>\s*</resource>}{}s )
+        while (s{<resource (?:\s+([^/<>]*))? />}{}sx
+            or s{<resource (?:\s+([^/<>]*))? >\s*</resource>}{}sx )
         {
-            my %hash  = main::parseXMLattrib($1);
-            my $name  = delete $hash{name};
-            my $limit = delete $hash{limit};
+            my %attr  = main::parseXMLattrib($1);
+            my $name  = delete $attr{name};
+            my $limit = delete $attr{limit};
             if ( defined $name and defined $limit ) {
                 $self->{$name} = $limit;
             }
@@ -229,7 +246,7 @@ sub change {
     my ( %pending, %adjusted );
 
     for (@args) {
-        s/,/ /g;    # comma -> space-delimited
+        s{,}{ }g;    # comma -> space-delimited
 
         my %h = map { /^(.+?)=(.*)$/ } split;
         for ( keys %h ) {
@@ -283,13 +300,15 @@ sub output {
 }
 
 # ------------------------------------------------------------------------
+# main
+#
 
 package main;
-import LCache;
+import qlicCache;
 
 # ------------------------------------------------------------------------
 sub usage {
-    $! = 0;               # clean exit
+    $! = 0;    # clean exit
     warn "@_\n" if @_;
     die <<"USAGE";
 usage:
@@ -297,7 +316,6 @@ usage:
     $Script [OPTION] resource=limit .. resource=limit
 
 with options:
-  -a       combined with '-u' = include active jobs
   -c FILE  alternative location for the license cache
   -C FILE  alternative location for the license limit
   -d       dump cache file as raw xml
@@ -306,7 +324,7 @@ with options:
   -l       list license limit
   -q       display free licenses via qhost query
   -u       license usage via 'lacct'
-  -U       license usage per user via 'lacct'
+  -U       license usage per user via 'lacct -u'
   -w       show who/where ('[]' indicates waiting jobs)
   -h       this help
 
@@ -319,33 +337,30 @@ with options:
 copyright (c) 2003-09 <Mark.Olesen\@emconTechnologies.com>
 
 Licensed and distributed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 2.5 License.
-http://creativecommons.org/licenses/by-nc-sa/2.5
+Attribution-NonCommercial-ShareAlike 3.0 License.
+http://creativecommons.org/licenses/by-nc-sa/3.0
 USAGE
 }
 
 # -------------------------------------------------------------------------
 my %opt;
-getopts( 'hac:C:DdflqUuw', \%opt ) or usage();
+getopts( 'hc:C:DdflqUuw', \%opt ) or usage();
 $opt{h} and usage();
 
-# user-based usage
 if ( $opt{U} ) {
+    ## user-based usage from accounting
     my @query = ( "lacct", "-u" );
-    push @query, map { $opt{$_} ? "-$_" : () } qw( a );
     exec @query;
     exit 2;
 }
-
-if ( $opt{u} ) {
-    my @query = "lacct";
-    push @query, map { $opt{$_} ? "-$_" : () } qw( a w );
+elsif ( $opt{u} ) {
+    ## usage from accounting
+    my @query = ( "lacct", $opt{w} ? "-w" : () );
     exec @query;
     exit 2;
 }
 
 if ( $opt{d} ) {
-    local $_;
     my $file = $opt{c} || $config->{-cache};
 
     if ( not -f $file and $file !~ m{/} ) {
@@ -354,7 +369,7 @@ if ( $opt{d} ) {
 
     -f $file or exit 1;
 
-    $_ = do { local ( @ARGV, $/ ) = $file; <>; };
+    local $_ = do { local ( @ARGV, $/ ) = $file; <>; };
 
     # do a basic check for well-formed xml
     # this might not be the case if there is a race condition
@@ -362,7 +377,7 @@ if ( $opt{d} ) {
 
     # check for '<?xml version="1.0"?><someTag ...' at the start
     # and '</someTag>' at the end
-    my ($tag) = m{^<\?xml [^<>]*\?>\s*\<(\w+)}sx;
+    my ($tag) = m{^<\?xml (?:\s+[^<>]*?)? \?>\s*\<(\w+)}sx;
     unless ( $tag and m{</\Q$tag\E>\s*$} ) {
         sleep 2;    ## wait and try again
         $_ = do { local ( @ARGV, $/ ) = $file; <>; };
@@ -389,40 +404,70 @@ if ( $opt{q} ) {
 }
 
 if ( $opt{l} ) {
-    my $info = LLimit->new( $opt{C} || $config->{-limits} );
-    $info->output();
+    qlicLimits->new( $opt{C} || $config->{-limits} )->output();
     exit;
 }
 
 if (@ARGV) {
-    LLimit->change( $opt{C} || $config->{-limits}, @ARGV );
+    qlicLimits->change( $opt{C} || $config->{-limits}, @ARGV );
     exit;
 }
 
-my $info = LCache->new( $opt{c} || $config->{-cache} );
+my $info = qlicCache->new( $opt{c} || $config->{-cache} );
 $info->dump() if $opt{D};
 
 my %resources = $info->query();
 
 #
-# stringify hash ref as keyword=value
+# display free licenses
 #
-sub hashRefToString {
-    map {
-        my $ref = $_;
-        ref $ref ? map { "$_=$ref->{$_}" } sort keys %$ref : ()
-    } @_;
+if ( $opt{f} ) {
+    for my $resource ( sort keys %resources ) {
+        my $count = $resources{$resource} || {};
+        my $free  = $count->{free}        || 0;
+        print "$resource=$free\n" if $free;
+    }
+
+    exit;
 }
 
-my @list;
+#
+# display who/where
+#
+if ( $opt{w} ) {
+    my ($len) = sort { $b <=> $a } map { length } keys %resources;
+    $len += 2;
+
+    my $fmt    = "%-${len}s";
+    my $indent = sprintf "\n$fmt", '';
+
+    for my $resource ( sort keys %resources ) {
+        my $count = $resources{$resource} || {};
+        my @list = hashRefToString( $count->{-where} );
+        if (@list) {
+            printf $fmt, $resource;
+            print join( $indent => @list ), "\n";
+        }
+    }
+
+    exit;
+}
+
+#
+# define table output format
+#
+my @outputList;
 
 format =
 # name      total limit extern intern wait free
 @<<<<<<<<<<< @>>>>> @>>>>> @>>>>> @>>>>> @>>>> @>>>>
-@list
+@outputList
 .
 
-unless ( $opt{f} or $opt{w} ) {
+#
+# display table header
+# --------------------
+{
     my @info = qw( host age );
     my ($len) = sort { $b <=> $a } map { length } @info;
 
@@ -434,51 +479,39 @@ unless ( $opt{f} or $opt{w} ) {
 
     print "\n";
 
-    @list = qw( resource total limit extern intern wait free );
+    @outputList = qw( resource total limit extern intern wait free );
+
     write;
-    s/./-/g for @list;
+    s/./-/g for @outputList;
     write;
 }
 
+#
+# display table body
+# ------------------
 for my $resource ( sort keys %resources ) {
     my $count = $resources{$resource} || {};
-    if ( $opt{f} ) {
-        my $free = $count->{free} || 0;
-        print "$resource=$free\n" if $free;
+    @outputList =
+      ( $resource, @{$count}{qw( total limit extern intern waiting free )} );
+
+    my $type = $resources{$resource}{type} || 0;
+
+    # no total?
+    $_ ||= "?" for $outputList[1];
+
+    if ( $type eq "intern" ) {
+        $_ = "*" for $outputList[3];
     }
-    elsif ( $opt{w} ) {
-        @list = hashRefToString( $count->{-where} );
-        if (@list) {
-            my $fmt = "%-11s";
-            my $indent = sprintf "\n$fmt", '';
-            printf $fmt, $resource;
-            print join( $indent => @list ), "\n";
-        }
+    elsif ( $type eq "track" ) {
+        $_ = "*" for $outputList[4];
     }
-    else {
-        @list =
-          ( $resource,
-            @{$count}{qw( total limit extern intern waiting free )} );
 
-        my $type = $resources{$resource}{type} || 0;
-
-        # no total?
-        $_ ||= "?" for $list[1];
-
-        if ( $type eq "intern" ) {
-            $_ = "*" for $list[3];
-        }
-        elsif ( $type eq "track" ) {
-            $_ = "*" for $list[4];
-        }
-
-        # easy to read representation for zero
-        for (@list) {
-            defined $_ or $_ = '.';
-        }
-
-        write;
+    # easy to read representation for zero
+    for (@outputList) {
+        defined $_ or $_ = '.';
     }
+
+    write;
 }
 
 # ------------------------------------------------------------------------

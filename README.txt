@@ -20,6 +20,11 @@ The supplementary program "qloadsensor" illustrates one possibility of
 integrating the qlicserver program and simultaneously maintaining a file to
 trace the current license status.
 
-The supplementary program "qlic" is simple means of parsing the output file
-for a quick overview. The programm "lacct", which extracts the output from
-the SGE accounting file, is still too ugly to be released.
+The supplementary program "qlic" is a simple means of parsing the output
+file for a quick overview. The programm "lacct", which extracts the output
+from the SGE accounting file, is still too ugly to be released.
+
+The supplementary program "filter-accounting" is a simple means of
+extracting portions of the GridEngine accounting(5) file according to the
+job end_time.
+
