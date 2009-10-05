@@ -1,11 +1,14 @@
 #!/usr/bin/perl -w
 use strict;
 use Getopt::Std qw( getopts );
+use POSIX qw( );
 
 ( my $Script = $0 ) =~ s{^.*/}{};
-my $time = time;
 
-my ($cache) = do {
+my $time = time;
+my $date = POSIX::strftime( "%F %T", localtime $time );
+
+my ($siteLocation) = do {
     ## admin_user (see SGE_ROOT/SGE_CELL/common/bootstrap)
     my $admin = "cfdadmin";
     my $root  = "n1ge6";      # sge_root
@@ -15,81 +18,205 @@ my ($cache) = do {
 
     my ($home) = ( getpwnam($admin) )[7] || "";
 
-    grep { -f } map { join "/" => @$_, "site", "license.cache" } (
+    grep { -d } map { join "/" => @$_, "site" } (
         [ $ENV{SGE_ROOT}, $ENV{SGE_CELL} ],    # standard location
         [ $home, $root, $ENV{SGE_CELL} ],      # extra safety
     );
 };
 
+my $config = {
+    -cache  => ( $siteLocation || '' ) . "/" . "qlicserver.cache",
+    -limits => ( $siteLocation || '' ) . "/" . "qlicserver.limits",
+};
+
 # ------------------------------------------------------------------------
+# utils
+
+# calculate age from epochs
+sub age {
+    my ( $a, $b ) = @_;
+    my $diff = ( $a - $b );
+
+    my $sign = '';
+    if ( $diff < 0 ) {    # handle negatives
+        $sign = '-';
+        $diff = abs($diff);
+    }
+
+    sprintf "$sign%d:%02d:%02d",    # format into hh:mm:ss
+      ( int $diff / 3_600 ),        # hh
+      ( ( int $diff / 60 ) % 60 ),  # mm
+      ( $diff % 60 );               # ss
+}
+
+# simple attribute parser
+sub parseXMLattrib {
+    my $str = shift;
+    my %attr;
+
+    if ( defined $str ) {
+        ## get attr="value"
+        for ($str) {
+            while (s{^\s*(\w+)=\"([^\"]*)\"}{}s
+                or s{^\s*(\w+)=\'([^\']*)\'}{}s )
+            {
+                $attr{$1} = $2;
+            }
+        }
+    }
+
+    %attr;
+}
+
 package LCache;
 
-{
-    my @tags    = qw( total limit global extern intern waiting );
-    my $re_tags = join( "|" => @tags );
+sub _xmlParse {
+    my $self = shift;
 
-    sub new {
-        my $caller = shift;
-        my $file   = shift || $cache;
+    # strip out all comments
+    s{<!--.*?-->\s*}{}sg;
 
-        my $self = {
-            ( map { $_ => {} } qw( -alias -license ) ),
-            ( map { $_ => '' } qw( -admin -date -host -age) )
-        };
+    # get the header section
+    s{^(.+?)</query>}{}s or return;
 
-        my $age = sub {
-            my ( $a, $b ) = @_;
-            my $diff = ( $a - $b );
-            sprintf "%d:%02d:%02d",     # format into hh:mm:ss
-              ( int $diff / 3_600 ),    # hh
-              ( ( int $diff / 60 ) % 60 ),    # mm
-              ( $diff % 60 );                 # ss
-        };
+    my $txt = $1;
+    for ( split m{\n+}, $txt ) {
+        if (m{<(host)>\s*(.+?)\s*</\1>}) {
+            my ( $k, $v ) = ( $1, $2 );
+            $self->{"-$k"} = $v;
+        }
+        elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
+            $self->{-age} = main::age( $time, $2 );
+            $self->{-date} = $3;
+        }
+    }
 
-        local @ARGV = $file;
-        for (<>) {
-            my ( $user, $tag, $mach, $license, $count, $alias, $full );
+    # only retain the <resources> contents
+    s{^.*?<resources>}{}s and s{</resources>.*$}{}s or return;
 
-            if (m{<(admin|host)>\s*(.+?)\s*</\1>}) {
-                my ( $k, $v ) = ( $1, $2 );
-                $self->{"-$k"} = $v;
+    ## process <resource .../> and <resource ...></resource>
+    while (s{<resource\s+([^<>]+)/>}{}s
+        or s{<resource\s+([^<>]+)>\s*</resource>}{}s )
+    {
+        my %hash = main::parseXMLattrib($1);
+        my $name = delete $hash{name};
+
+        if ( defined $name ) {
+            for my $k ( keys %hash ) {
+                $self->{-rc}{$name}{$k} = $hash{$k} || 0;
             }
-            elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
-                $self->{-age} = $age->( $time, $2 );
-                $self->{-date} = $3;
-            }
-            elsif (m{<(alias) \s+ .*? name=\"(.+?)\"\s*>\s*(.+?)\s*</\1>}x) {
-                $self->{-alias}{$2} = $3;
-            }
-            elsif ( ( $tag, $license, $count ) =
-                m{^(\S+?) [:=]+ (\S+?) [:=]+ (\d+?) \s*$}x )
-            {
-                $self->{-license}{$license} ||= {
-                    -where => {},
-                    map { $_ => 0 } ( qw( -managed -tracked ), @tags ),
-                };
+        }
+    }
 
-                if ( $tag =~ m{^($re_tags)$} ) {
-                    $self->{-license}{$license}{$tag} = $count;
-                    $self->{-license}{$license}{-managed}++ if /:/;
-                    $self->{-license}{$license}{-tracked}++ if /==/;
-                }
-                elsif ( $tag =~ m{[*@]} ) {    ## 'user@host' or 'user*'
-                    $self->{-license}{$license}{-where}{$tag} = $count;
-                }
+    ## process <resource ...> CONTENT </resource>
+    while (s{<resource\s+([^<>]+)>(.+?)</resource>}{}s) {
+        my ( $attr, $content ) = ( $1, $2 );
+        my %hash = main::parseXMLattrib($attr);
+        my $name = delete $hash{name};
+
+        if ( defined $name ) {
+            for my $k ( keys %hash ) {
+                $self->{-rc}{$name}{$k} = $hash{$k} || 0;
             }
         }
 
-        bless $self => ref($caller) || $caller;
+        ## process <user ...> COUNT </user>
+        while ( $content =~ s{<user\s+([^<>]+)>(\d+)</user>}{}s ) {
+            my ( $attr, $count ) = ( $1, $2 );
+            my %hash = main::parseXMLattrib($attr);
+            my $user = delete $hash{name};
+            my $host = delete $hash{host};
+
+            if ( defined $user ) {
+                if ( defined $host ) {
+                    $self->{-rc}{$name}{-where}{"$user\@$host"} = $count;
+                }
+                else {
+                    ## tag waiting with '[]'
+                    $self->{-rc}{$name}{-where}{$user} = "[$count]";
+                }
+            }
+        }
+    }
+}
+
+sub _legacyParse {
+    my $self = shift;
+
+    my @tags    = qw( total limit global extern intern waiting );
+    my $re_tags = join( "|" => @tags );
+
+    for ( split /\n+/ ) {
+        my ( $user, $tag, $mach, $license, $count, $full );
+
+        if (m{<(host)>\s*(.+?)\s*</\1>}) {
+            my ( $k, $v ) = ( $1, $2 );
+            $self->{"-$k"} = $v;
+        }
+        elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
+            $self->{-age} = main::age( $time, $2 );
+            $self->{-date} = $3;
+        }
+        elsif ( ( $tag, $license, $count ) =
+            m{^(\S+?) [:=]+ (\S+?) [:=]+ (\d+?) \s*$}x )
+        {
+            $self->{-rc}{$license} ||= {
+                -where => {},
+                map { $_ => 0 } ( qw( type ), @tags ),
+            };
+
+            if ( $tag =~ m{^($re_tags)$} ) {
+                $self->{-rc}{$license}{$tag} = $count;
+                my $type;
+                if (/==/) {
+                    $type = "intern";
+                }
+                elsif ( not /:/ ) {
+                    $type = "track";
+                }
+                $self->{-rc}{$license}{type} = $type;
+
+            }
+            elsif ( $tag =~ m{[*@]} ) {    ## 'user@host' or 'user'
+                $self->{-rc}{$license}{-where}{$tag} = $count;
+            }
+        }
     }
 
-    sub query {
-        my $self = shift;
-        my @args = @_;
-
-        my %license = %{ $self->{-license} };
-        return %license;
+    for ( values %{ $self->{-rc} } ) {
+        $_->{free} = delete $_->{global} if exists $_->{global};
     }
+}
+
+sub new {
+    my $caller = shift;
+    my $file   = shift;
+
+    my $self = bless {
+        ( map { $_ => {} } qw( -rc ) ),
+        ( map { $_ => '' } qw( -date -host -age ) )
+    }, $caller;
+
+    local $_ = do {
+        local @ARGV = $file;
+        local $/;
+        <>;
+    };
+
+    if (m{^\s*<\?xml}) {
+        $self->_xmlParse();
+    }
+    else {
+        $self->_legacyParse();
+    }
+
+    return $self;
+}
+
+sub query {
+    my $self = shift;
+    my @args = @_;
+    %{ $self->{-rc} };
 }
 
 sub dump {
@@ -97,15 +224,133 @@ sub dump {
     print Dumper( $_[0] );
 }
 
-sub unalias {
-    my $self = shift;
-    grep { defined }
-      map { $self->{-license}{$_} ? $_ : $self->{-alias}{$_} || undef } @_;
-}
-
 sub available {
     my $self = shift;
-    sort keys %{ $self->{-license} };
+    sort keys %{ $self->{-rc} };
+}
+
+package LLimit;
+
+sub new {
+    my $caller     = shift;
+    my $diskValues = shift;
+
+    my $self = bless {}, $caller;
+
+    my $fileString;
+    if ( defined $diskValues and -f $diskValues ) {
+        $fileString = do {
+            local *FILE;
+            local $/;
+            if ( open FILE, $diskValues ) {
+                <FILE>;
+            }
+            else {
+                undef;
+            }
+        };
+    }
+    elsif ( defined $diskValues and -d $diskValues ) {
+        local *DIR;
+        my $dir = $diskValues;
+        if ( opendir DIR, $dir ) {
+            my @files = grep { -f "$dir/$_" and -r _ } readdir DIR;
+            for my $name (@files) {
+                my $limit;
+
+                # use the last value
+                if ( open FILE, "$dir/$name" ) {
+                    $limit = ( map { /^\s*(-?\d+)\s*$/ } <FILE> )[-1];
+                }
+                defined $limit or $limit = "NONE";
+                $self->{$name} = $limit;
+            }
+        }
+    }
+
+    for ($fileString) {
+        defined or next;
+
+        # strip out all comments
+        s{<!--.*?-->\s*}{}sg;
+
+        ## process <resource .../> and <resource ...></resource>
+        while (s{<resource\s+([^<>]+)/>}{}s
+            or s{<resource\s+([^<>]+)>\s*</resource>}{}s )
+        {
+            my %hash  = main::parseXMLattrib($1);
+            my $name  = delete $hash{name};
+            my $limit = delete $hash{limit};
+            if ( defined $name and defined $limit ) {
+                $self->{$name} = $limit;
+            }
+        }
+    }
+
+    return $self;
+}
+
+sub change {
+    my $caller     = shift;
+    my $diskValues = shift;
+    my @args       = @_;
+
+    @args or return;
+
+    my ( %pending, %adjusted );
+
+    for (@args) {
+        s/,/ /g;    # comma -> space-delimited
+
+        my %h = map { /^(.+?)=(.*)$/ } split;
+        for ( keys %h ) {
+            defined $h{$_} and length $h{$_} or $h{$_} = "NONE";
+            $pending{$_} = $h{$_};
+        }
+    }
+
+    keys %pending or return;
+
+    my $user = getpwuid $<;
+    if ( defined $diskValues and -d $diskValues ) {
+        local *DIR;
+        my $dir = $diskValues;
+        if ( opendir DIR, $dir ) {
+            my @files = grep { -f "$dir/$_" and -w _ } readdir DIR;
+
+            for my $name (@files) {
+                if ( exists $pending{$name} ) {
+                    local *FILE;
+                    if ( open FILE, ">", "$dir/$name" ) {
+                        print FILE "# adjusted by $user $date\n",
+                          "$pending{$name}\n";
+                        $adjusted{$name} = delete $pending{$name};
+                    }
+                }
+            }
+        }
+    }
+
+    for ( [ "adjusted" => \%adjusted ], [ "not adjusted" => \%pending ], ) {
+        my ( $label, $href ) = @$_;
+        keys %$href or next;
+        print "$label: ",
+          join( "," => map { qq{$_=$href->{$_}} } sort keys %$href ), "\n";
+    }
+}
+
+sub output {
+    my $self = shift;
+
+    my @list = map { qq{$_=$self->{$_}} } sort keys %$self;
+
+    print "limits: ";
+    if (@list) {
+        print join( "," => @list ), "\n";
+    }
+    else {
+        print "NONE\n";
+    }
 }
 
 # ------------------------------------------------------------------------
@@ -115,7 +360,7 @@ import LCache;
 
 our ( $VERSION, $DATE ) = do {
     my ( $ver, $date ) =
-      q{$Id: qlic,v 1.10 2006/11/22 14:39:19 cfdadmin Exp $} =~
+      q{$Id: qlic,v 1.20 2008/01/04 08:37:03 cfdadmin Exp $} =~
       m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
     $date =~ s{/}{-}g;    # ISO-formatted
 
@@ -129,24 +374,30 @@ sub usage {
     die <<"USAGE";
 usage:
     $Script [OPTION]
+    $Script [OPTION] resource=limit .. resource=limit
 
 with options:
   -a       combined with '-u' = include active jobs
-  -c FILE  alternative file to parse
+  -c FILE  alternative location for the license cache
+  -C FILE  alternative location for the license limit
   -d       dump license cache in raw  format
   -D       dump license cache in perl format
   -f       display free licenses only
+  -l       list license limit
   -q       display free licenses via qhost query
   -u       license usage via 'lacct'
   -U       license usage per user via 'lacct'
-  -w       show who/where ('*' indicates waiting jobs)
+  -w       show who/where ('[]' indicates waiting jobs)
   -h       this help
 
 * extract / display information for the GridEngine license cache
-  <$cache>
+  $config->{-cache}
+
+* adjust / display information for the license limits
+  $config->{-limits}
 
 version $VERSION ($DATE)
-copyright (c) 2003-06 <Mark.Olesen\@ArvinMeritor.com>
+copyright (c) 2003-07 <Mark.Olesen\@emconTechnologies.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -156,7 +407,7 @@ USAGE
 
 # -------------------------------------------------------------------------
 my %opt;
-getopts( 'hac:DdfqUuw', \%opt ) or usage();
+getopts( 'hac:C:DdflqUuw', \%opt ) or usage();
 $opt{h} and usage();
 
 # user-based usage
@@ -175,33 +426,45 @@ if ( $opt{u} ) {
 }
 
 if ( $opt{d} ) {
-    local @ARGV = $opt{c} || $cache;
+    local @ARGV = $opt{c} || $config->{-cache};
     print while <>;
     exit;
 }
 
 if ( $opt{q} ) {
-    my %global =
+    my %free =
       map  { /^\s+gc:(\S+?)=(\d\S*)\s*$/ }
       grep { /^global/ ... /^\S/ } qx{qhost -F};
-    $_ += 0 for values %global;
 
-    for ( sort keys %global ) {
-        my $free = $global{$_} + 0;    # normalize as integers
-        print "$_=$free\n";
+    $_ += 0 for values %free;
+
+    for ( sort keys %free ) {
+        my $intval = $free{$_} + 0;    # normalize as integers
+        print "$_=$intval\n";
     }
     exit;
 }
 
-my $linfo = LCache->new( $opt{c} );
-$linfo->dump() if $opt{D};
+if ( $opt{l} ) {
+    my $info = LLimit->new( $opt{C} || $config->{-limits} );
+    $info->output();
+    exit;
+}
 
-my %license = $linfo->query();
+if (@ARGV) {
+    LLimit->change( $opt{C} || $config->{-limits}, @ARGV );
+    exit;
+}
+
+my $info = LCache->new( $opt{c} || $config->{-cache} );
+$info->dump() if $opt{D};
+
+my %resources = $info->query();
 
 #
 # stringify hash ref as keyword=value
 #
-sub kv {
+sub hashRefToString {
     map {
         my $ref = $_;
         ref $ref ? map { "$_=$ref->{$_}" } sort keys %$ref : ()
@@ -211,7 +474,7 @@ sub kv {
 my @list;
 
 format =
-# name      total limit global extern intern wait free
+# name      total limit extern intern wait free
 @<<<<<<<<<<< @>>>>> @>>>> @>>>>> @>>>>> @>>> @>>>
 @list
 .
@@ -222,41 +485,46 @@ unless ( $opt{f} or $opt{w} ) {
 
     print map {
         my $k = sprintf "%-${len}s", $_;
-        my $v = $linfo->{"-$_"};
+        my $v = $info->{"-$_"};
         $v ? "$k = $v\n" : ();
     } @info;
 
     print "\n";
 
-    @list = qw( feature total limit extern intern wait free );
+    @list = qw( resource total limit extern intern wait free );
     write;
     s/./-/g for @list;
     write;
 }
 
-for my $feature ( sort keys %license ) {
-    my $count = $license{$feature} || {};
+for my $resource ( sort keys %resources ) {
+    my $count = $resources{$resource} || {};
     if ( $opt{f} ) {
-        my $free = $count->{global} || 0;
-        print "$feature=$free\n" if $free;
+        my $free = $count->{free} || 0;
+        print "$resource=$free\n" if $free;
     }
     elsif ( $opt{w} ) {
-        @list = kv( $count->{-where} );
+        @list = hashRefToString( $count->{-where} );
         if (@list) {
             my $fmt = "%-11s";
             my $indent = sprintf "\n$fmt", '';
-            printf $fmt, $feature;
+            printf $fmt, $resource;
             print join( $indent => @list ), "\n";
         }
     }
     else {
-        @list = (
-            $feature, @{$count}{qw( total limit extern intern waiting global )}
-        );
+        @list =
+          ( $resource, @{$count}{qw( total limit extern intern waiting free )} );
 
-        if ( $license{$feature}{-tracked} ) {
+        my $type = $resources{$resource}{type} || 0;
+
+        # no total?
+        $_ ||= "?" for $list[1];
+
+        if ( $type eq "intern" ) {
             $_ = "*" for $list[3];
-        } elsif (not $license{$feature}{-managed} ) {
+        }
+        elsif ( $type eq "track" ) {
             $_ = "*" for $list[4];
         }
 
@@ -266,4 +534,5 @@ for my $feature ( sort keys %license ) {
         write;
     }
 }
+
 # ------------------------------------------------------------------------

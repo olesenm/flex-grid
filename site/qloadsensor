@@ -8,11 +8,11 @@
 #           eg, 'perl -x qloadsensor'
 #       * complex consumables managed global
 #           eg, 'qlicserver -c'
-#    2) initialize the global complex consumables to e managed
+#    2) initialize the global complex consumables to be managed
 #           eg, 'qlicserver -C'
 #
-# $Id: qloadsensor,v 1.7 2006/08/04 08:21:58 cfdadmin Exp $
-# copyright (c) 2003-05 <Mark.Olesen@ArvinMeritor.com>
+# $Id: qloadsensor,v 1.13 2007/12/14 11:39:19 cfdadmin Exp $
+# copyright (c) 2003-07 <Mark.Olesen@emconTechnologies.com>
 #
 # Licensed and distributed under the Creative Commons
 # Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -35,7 +35,8 @@ export SGE_ROOT SGE_CELL SGE_ARCH
 # -----------------------------------------------------------------------------
 # this script should run as the 'admin_user' registered in 'bootstrap'
 #
-if [ "$UID" -eq 0 ]; then
+if [ "$UID" -eq 0 ]
+then
    admin_user=$(sed -ne 's/^admin_user *//p' $SGE_ROOT/$SGE_CELL/common/bootstrap)
    : ${admin_user:=root}
    if [ $admin_user != root -a $(echo $admin_user | tr "A-Z" "a-z") != none ]
@@ -59,9 +60,7 @@ for i in $SGE_ROOT/$SGE_CELL/site/environ; do [ -f $i ] && . $i; done
 ###############################################################################
 # CUSTOMIZE THESE SETTINGS - iff. required
 
-cache_file=$SGE_site/license.cache
-license_sensor=$SGE_site/qlicserver
-license_query="$license_sensor"
+qlicserver="$SGE_site/qlicserver dir=$SGE_site output=qlicserver.cache qhost=qhost.cache qstat=qstat.cache"
 
 # END OF CUSTOMIZE SETTINGS
 ###############################################################################
@@ -78,14 +77,6 @@ SGE_qmaster=unknown; export SGE_qmaster
 # the real (not compiled in) architecture
 #
 os_arch=`$SGE_ROOT/util/arch`
-
-#
-# ensure that all cache files exist
-#
-for i in $cache_file $cache_file.TMP
-do
-  [ -f $i ] || touch $i 2>/dev/null
-done
 
 # -----------------------------------------------------------------------------
 # act_qmaster
@@ -125,11 +116,20 @@ df_info()
 }
 
 # invariant values
-if [ -e "/proc/cpuinfo" ]; then
-  mips=$(awk '{if (/mips/) printf "%.0f\n", $NF}' /proc/cpuinfo | tail -1)
+if [ -e "/proc/cpuinfo" ]
+then
+   mips=$(awk '{if (/mips/) printf "%.0f\n", $NF}' /proc/cpuinfo | tail -1)
 else
-  mips=0
+   mips=0
 fi
+
+unset os_name
+# extract VERSION = 10.2 => suse10.2
+if [ -e "/etc/SuSE-release" ]
+then
+   os_name=$(sed -ne 's/^VERSION *= */suse/p' /etc/SuSE-release 2>/dev/null)
+fi
+: ${os_name:=NONE}
 
 # -----------------------------------------------------------------------------
 # host_info
@@ -140,6 +140,7 @@ fi
 host_info()
 {
    echo "$UQHOST:arch:$os_arch"
+   echo "$UQHOST:os:$os_name"
    df_info	tmp	/tmp
    echo "$UQHOST:mips:$mips"
 }
@@ -245,9 +246,9 @@ do
 
    # let the license query run between load reports
    SGE_qmaster=`act_qmaster`	# refresh the name of the qmaster
-   if [ "$HOST" = "$SGE_qmaster" ]; then
-      $license_query        >| $cache_file.TMP 2>> qloadsensor.err
-      cat $cache_file.TMP   >| $cache_file
+   if [ "$HOST" = "$SGE_qmaster" ]
+   then
+      $qlicserver 2>> qloadsensor.err
       # force rescheduling of express jobs
       $SGE_site/qxprs >/dev/null 2>&1
    fi
@@ -269,5 +270,6 @@ tmp_total      tmpt     MEMORY  <=   YES         NO         0        0
 tmp_used       tmpu     MEMORY  >=   NO          NO         0        0
 tmp_free       tmpf     MEMORY  <=   YES         NO         0        0
 iidle          iidle    INT     <=   YES         NO         0        0
-mips           mips     INT     >=   YES         NO         0        0
+mips           mips     INT     <=   YES         NO         0        0
+os             os       RESTRING ==  YES         NO         NONE     0
 # -----------------------------------------------------------------------------
