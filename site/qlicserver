@@ -12,7 +12,7 @@ import Sge;
 import Qconf;
 
 my ( $Script, $Path ) = fileparse $0;
-my ($releaseDate) = qw( 2009-04-28 );
+my ($releaseDate) = qw( 2009-05-26 );
 
 ###############################################################################
 ###############################################################################
@@ -766,22 +766,11 @@ sub mungeLicenses {
 
             defined $part or next;    # not reported/managed and not served
 
+            # collect total/limit and extern
             $entry->{total} += $part->{total} || 0;
             $entry->{limit} += $part->{limit} || 0;
-
-            for my $category ( keys %{ $part->{users} } ) {
-                for ( keys %{ $part->{users}{$category} } ) {
-                    my $ref = $part->{users}{$category}{$_};
-                    if ( ref $ref ) {
-                        for my $k ( keys %$ref ) {
-                            $entry->{users}{$category}{$_}{$k} += $ref->{$k};
-                        }
-                    }
-                    else {
-                        $entry->{users}{$category}{$_} +=
-                          $part->{users}{$category}{$_};
-                    }
-                }
+            for ( keys %{ $part->{users}{extern} } ) {
+                $entry->{users}{extern}{$_} += $part->{users}{extern}{$_};
             }
         }
 
