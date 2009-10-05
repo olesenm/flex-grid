@@ -11,7 +11,7 @@
 #    2) initialize the global complex consumables to e managed
 #           eg, 'qlicserver -C'
 #
-# $Id: qloadsensor,v 1.6 2005/11/15 10:40:19 cfdadmin Exp $
+# $Id: qloadsensor,v 1.7 2006/08/04 08:21:58 cfdadmin Exp $
 # copyright (c) 2003-05 <Mark.Olesen@ArvinMeritor.com>
 #
 # Licensed and distributed under the Creative Commons
@@ -75,6 +75,11 @@ UQHOST=$(echo $HOST | cut -f1 -d.)
 SGE_qmaster=unknown; export SGE_qmaster
 
 #
+# the real (not compiled in) architecture
+#
+os_arch=`$SGE_ROOT/util/arch`
+
+#
 # ensure that all cache files exist
 #
 for i in $cache_file $cache_file.TMP
@@ -134,6 +139,7 @@ fi
 #
 host_info()
 {
+   echo "$UQHOST:arch:$os_arch"
    df_info	tmp	/tmp
    echo "$UQHOST:mips:$mips"
 }
@@ -240,7 +246,7 @@ do
    # let the license query run between load reports
    SGE_qmaster=`act_qmaster`	# refresh the name of the qmaster
    if [ "$HOST" = "$SGE_qmaster" ]; then
-      $license_query        >| $cache_file.TMP
+      $license_query        >| $cache_file.TMP 2>> qloadsensor.err
       cat $cache_file.TMP   >| $cache_file
       # force rescheduling of express jobs
       $SGE_site/qxprs >/dev/null 2>&1

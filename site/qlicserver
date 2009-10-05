@@ -1,9 +1,11 @@
 #!/usr/bin/perl -w
 # avoid shell starter method here - otherwise we cannot kill the daemon
+use 5.008;
 use strict;
+use threads;    ## REMOVE FOR UNTHREADED PERL
 use Getopt::Std qw( getopts );
 use Data::Dumper;
-use POSIX;
+use POSIX qw();
 import License;
 import Qconf;
 import Qstat;
@@ -22,22 +24,21 @@ my $config = {
     #   feature => "name shortcut"
     #
     lookup => {
-        -EZsurf     => "prosurf",
+        -aihexa     => "hexa",
+        -aimed      => "med",
+        -aitetra    => "tetra",
+        -ansys      => "ansys",
         -GTise      => "gtise",
         -HyperWorks => "hyper",
-        -hexa       => "hexa",
-        -med        => "med",
-        -tetra      => "tetra",
         -proam      => "proam",
         -prostar    => "prostar",
-        -stardesign => "stardesign",
         GTpowerX    => "gtpower",
         NASTRAN     => "nastran",
         abaqus      => "abaqus",
-        fire        => "fire7",        # AVL/FIRE w/ astlm manager
-        hpcdomains  => "starp",        # Star-CD parallel
-        starsuite   => "stars",        # Star-CD serial
-        starpar     => "starjob",      # Star-CD parallel starter
+        hpcdomains  => "starp",      # Star-CD parallel
+        starsuite   => "stars",      # Star-CD serial
+        starpar     => "starjob",    # Star-CD parallel starter
+        JT          => "thomat",     # abaqus high temperature modelling
     },
 
     ## bundle:
@@ -48,7 +49,7 @@ my $config = {
     #   combined => "elem1 .. elemN"
     #
     bundle => {
-        starcd => "starp stars",       # serial/parallel
+        starcd => "starp stars",     # parallel/serial
     },
 
     ## urgency:
@@ -70,8 +71,23 @@ my $config = {
     #   resource => INTEGER
     #   resource => FLOAT < 1.0
     #
-    limit => { gtpower => 0, nastran => 3, stars => 2 },
+    limit => { gtpower => 4, nastran => 3, stars => 2, },
+
+    ## trackonly:
+    #   internal resources that are to be tracked, but not managed
+    #
+    #   format:
+    #   space-delimited string
+    #
+    trackonly => "foam",
+
+    ## config:
+    #   various site configuration parameters - not yet implemented
+    config => {
+	## nthread => 0,
+    },
 };
+
 #
 #
 # END OF CUSTOMIZE SETTINGS
@@ -79,10 +95,22 @@ my $config = {
 ###############################################################################
 
 #
-# recast Bundle and Lookup Table(s) into array refs
+# recast Bundle, Lookup Table(s), Track Only into array refs
 #
-for ( values %{ $config->{lookup} }, values %{ $config->{bundle} } ) {
-    $_ = [split];
+for (
+    values %{ $config->{bundle} },
+    values %{ $config->{lookup} },
+    $config->{trackonly},
+  )
+{
+    $_ = [ (defined) ? split: () ];
+}
+
+#
+# Track Only values cannot appear elsewhere
+#
+for my $ref ( $config->{bundle}, $config->{lookup} ) {
+    delete @$ref{ map { $_ => "-$_" } @{ $config->{trackonly} } };
 }
 
 #
@@ -91,6 +119,17 @@ for ( values %{ $config->{lookup} }, values %{ $config->{bundle} } ) {
 for ( keys %{ $config->{lookup} } ) {
     $config->{lookup}{$_}[1] ||= $config->{lookup}{$_}[0] ||= $_;
 }
+
+#
+# create reverse lookup - map complex to feature name
+#
+$config->{reverseLookup} = {
+    map {
+        my ($complex) = @{ $config->{lookup}{$_} };
+        /^-/ ? () : ( $complex => $_ );
+      }
+      keys %{ $config->{lookup} }
+};
 
 #
 # create an Alias Table, including 1:1 mappings
@@ -126,7 +165,7 @@ my $CmdLine = join( " " => $Script, @ARGV );
 
 our ( $VERSION, $DATE ) = do {
     my ( $ver, $date ) =
-      q{$Id: qlicserver,v 1.16 2006/04/13 13:05:48 cfdadmin Exp $} =~
+      q{$Id: qlicserver,v 1.26 2007/05/07 12:22:04 cfdadmin Exp $} =~
       m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
     $date =~ s{/}{-}g;    # ISO-formatted
 
@@ -152,12 +191,12 @@ options:
            The optional argument is used as the delay [s] between queries
            (default: 60 seconds)
 
-   -D      debugging info for the developer
+   -D      debug information for the developer
 
    -h      help
 
    -i      information about license features
-           (generates text for the lookup table)
+           (generates text for the config lookup table)
 
    -k      kill running daemon
 
@@ -168,14 +207,14 @@ options:
            The resource 'slots' will be used to scale the license request.
            Returns the available resources.
 
-   -n      suppress adjustment of the managed licenses.
+   -n      suppress adjustment of the managed licenses (useful for testing).
            The output can be used directly for a load report:
            eg, "qlicserver -n | grep global:", but this is ill-advised
 
    -q      quiet(er) mode. Suppress output.
 
    -t SEC
-           server query timeout (default: 60 seconds)
+           server query timeout (default: 15 seconds)
 
    -w      wake-up daemon from sleep
 
@@ -198,7 +237,7 @@ NOTES:
   the author directly.
 
 version $VERSION ($DATE)
-copyright (c) 2003-06 <Mark.Olesen\@ArvinMeritor.com>
+copyright (c) 2003-07 <Mark.Olesen\@ArvinMeritor.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -212,14 +251,14 @@ getopts( "hCcDdikl:nqt:w", \%opt );    # tolerate faults on unknown options
 $opt{h} and usage();
 my $Debugging ||= $opt{D};
 
-my $host  = ( uname() )[1];
+my $host  = ( POSIX::uname() )[1];
 my $admin = getpwuid($<);
 
 License->timeout( $opt{t} ) if $opt{t};    # adjust timeout
 
 # --------------------------------------------------------------------------
 #
-# Prototype: munge_licenses( HASHREF1 [, HASHREF2, [, HASHREF3]] )
+# Prototype: munge_licenses( REF1 [, REF2, [, REF3]] )
 #
 # HASHREF1 => {		# from the license manager
 #    feature => {
@@ -239,6 +278,7 @@ License->timeout( $opt{t} ) if $opt{t};    # adjust timeout
 #          "user@machine nlicense" => occurances,
 #          ...
 #       },
+#       total => NUM,  # iff. an internal tracked value
 #    },
 # }
 #
@@ -313,6 +353,23 @@ sub munge_licenses {
             flags   => $ignore,
             info    => { total => $total, limit => $limit, },
             extern  => $extern,
+            intern  => $intern,
+            waiting => $waiting,
+        };
+    }
+
+    # add in tracked features
+    for my $resource ( keys %$consumed ) {
+        my $total = delete $consumed->{$resource}{total} or next;
+
+        # internal job allocation, jobs waiting
+        my $intern  = delete( $consumed->{$resource} ) || {};
+        my $waiting = delete( $intern->{waiting} )     || {};
+
+        $report->{$resource} = {
+            flags   => -intern,
+            info    => { total => $total, limit => $total },
+            extern  => {},
             intern  => $intern,
             waiting => $waiting,
         };
@@ -417,9 +474,9 @@ sub munge_licenses {
             %hash;
         };
 
-	# add licenses reported as waiting by FlexLM
+        # add licenses reported as waiting by FlexLM
         for ( grep { /^\*/ } keys %$extern ) {
-            $waiting->{$_} += delete $extern->{$_}
+            $waiting->{$_} += delete $extern->{$_};
         }
 
         #
@@ -546,7 +603,7 @@ sub generate_output {
         $_ >= 0 or $_ = 0 for ( $free, $managed );    # should not be required
 
         # accumulate in summary hash
-        unless ($ignore) {
+        if ( not $ignore or $ignore and $ignore =~ /intern/ ) {
             $rc->{total}{$resource}   = $total;
             $rc->{limit}{$resource}   = $limit if defined $limit;
             $rc->{extern}{$resource}  = $ext_count;
@@ -567,9 +624,17 @@ sub generate_output {
             print "$tag=$resource=$count\n" if $count;
         }
 
-        print $ignore
-          ? "global=$resource=$free\n"
-          : "global:$resource:$free\n";
+        if ($ignore) {
+            if ( $ignore =~ /intern/ ) {
+                print "global==$resource==$free\n";
+            }
+            else {
+                print "global=$resource=$free\n";
+            }
+        }
+        else {
+            print "global:$resource:$free\n";
+        }
 
         my %user;
         for my $ref ( $extern, $intern, $waiting ) {
@@ -672,7 +737,7 @@ PRINT
 
 # ---------------------------------------------------------------------------
 # '-i'
-# query the license server for license features
+# query the license servers for available license features
 # ---------------------------------------------------------------------------
 if ( $opt{i} ) {
     my $license = License->query();
@@ -802,18 +867,37 @@ if ($daemon) {
     $SIG{PIPE} = "IGNORE";
     $SIG{USR1} = sub { sleep 0; };    # allow wake-up on demand
     $SIG{USR2} = sub {
-	sleep 0;	# wake-up
-	$daemon = -1;	# signal end
+        sleep 0;                      # wake-up
+        $daemon = -1;                 # signal end
     };
 }
 
+#
+# the main license query and 'qconf -mattr' code
+# standard - execute once
+# daemon   - loop until killed
 do {
-    my $licenses =
-      munge_licenses( License->query(), Qstat->query(), $config->{limit} );
+    my $served = License->query();
+    my $qstat  = Qstat->query();
+    my $qconf  = Qconf->query();
 
-    die Dumper($licenses), "\n" if $Debugging;
+    #
+    # add in the tracked resources
+    #
+    for ( @{ $config->{trackonly} } ) {
+        $qstat->{$_}{total} = $qconf->{$_} if exists $qconf->{$_};
+    }
 
-    my $change = Qconf->diff( Qconf->query(), $licenses );
+    #
+    # assign 'total => 0' for managed licenses that were not
+    # reported from the server (eg, server down)
+    #
+    for ( values %{ $config->{reverseLookup} } ) {
+        $served->{$_} ||= { total => 0 };
+    }
+
+    my $licenses = munge_licenses( $served, $qstat, $config->{limit} );
+    my $change = Qconf->diff( $qconf, $licenses );
 
     unless ( $opt{q} ) {
         generate_output($licenses);
@@ -825,6 +909,12 @@ do {
           . " global\n";
     }
 
+    if ($Debugging) {
+        $opt{n}++;
+        die Data::Dumper->Dump( [ $licenses, $change ], [qw(License Change)] ),
+          "\n";
+    }
+
     Qconf->mattr( stringify_hashref($change) ) unless $opt{n};
 
 } while processing();
@@ -832,26 +922,32 @@ do {
 exit 0;
 
 # --------------------------------------------------------------------------
+# the qx// command with a simple timeout wrapper
+
 package Shell;
 
 sub cmd {
     my ( $caller, %var ) = @_;
+    my $command = $var{cmd}     || '';
     my $timeout = $var{timeout} || 0;
-    my $cmd     = $var{cmd}     || '';
     my @lines;
+
+    if ( ref $command eq "ARRAY" ) {
+        $command = "@$command";
+    }
 
     eval {
         local $SIG{ALRM} = sub { die "TIMEOUT\n" };    # NB: '\n' required
         alarm $timeout if $timeout;
-        $cmd or die "$caller: Shell->cmd with an undefined query\n";
-        @lines = qx{$cmd 2>&1};
+        $command or die "$caller: Shell->cmd with an undefined query\n";
+        @lines = qx{$command 2>&1};
         die "(EE) ", @lines if $?;
         alarm 0;
     };
 
     if ($@) {
         if ( $@ eq "TIMEOUT\n" ) {
-            warn "(WW) TIMEOUT after $timeout seconds on '$cmd'\n";
+            warn "(WW) TIMEOUT after $timeout seconds on '$command'\n";
             return undef;
         }
         else {
@@ -865,32 +961,54 @@ sub cmd {
 1;
 
 # --------------------------------------------------------------------------
+# FlexLM queries
+#
+# The env variable 'LM_LICENSE_FILE' contains a colon-delimited list
+# with "port@server:port@server".
+# The queries for the same server (but different ports) are grouped together
 
 package Flexlm;
-use vars qw( $query $timeout $environment );
+our ( $query, $env, $timeout, @servers );
 
 BEGIN {
-    $timeout     = 60;
-    $environment = "LM_LICENSE_FILE";
-    for ($environment) {
-        if ( $ENV{$_} ) {
-            $query = "lmutil lmstat -a -c $ENV{$_}";
-            push @License::Manager, __PACKAGE__;
+    $env     = "LM_LICENSE_FILE";
+    $timeout = 15;
+    $query   = "lmutil lmstat -a -c";    # prefix for the query
+
+    if ( my $value = $ENV{$env} ) {
+        my %index;
+        my $index = 0;
+        @servers = ();
+
+        for ( map { s{[:;]+}{ }g; split } $value ) {
+            my $name = $_;
+            if ( $name =~ s/^\d*\@// ) {    ## port@server or @server
+                $name =~ s/\..+$//;         ## unqualified name
+            }
+            if ( defined $index{$name} ) {
+                $servers[ $index{$name} ] .= ":$_";
+            }
+            else {
+                $index{$name} = $index++;
+                push @servers, $_;
+            }
         }
-        else {
-            ## warn "(WW) ", __PACKAGE__, ": skip query, '\$$_' not set\n";
-            undef $query;
-        }
+
+        push @License::Manager, __PACKAGE__;
+    }
+    else {
+        ## warn "(WW) ", __PACKAGE__, ": skip query, '\$$_' not set\n";
+        undef $query;
     }
 }
 
 sub env {
-    return $environment;
+    return $env;
 }
 
 sub timeout {
     my ( $caller, $value ) = @_;
-    ( $value ||= 0 ) > 0 or $value = 60;
+    ( $value ||= 0 ) > 0 or $value = 15;
     $timeout = $value;
 }
 
@@ -923,17 +1041,24 @@ sub timeout {
 # }
 #
 
-sub query {
-    my $caller  = shift;
-    my $pkg     = __PACKAGE__;
+sub query_server {
+    my ( $caller, $server ) = @_;
     my $license = {};
+
+    $server ||= join( ":" => @servers );
+
+    my @lines = Shell->cmd(
+        cmd     => "$query $server",
+        timeout => $timeout,
+    );
+
+    defined $lines[0] or return $license;
+
+    # warn "parse <@lines>\n";
     my $feature;
-
-    my @lines = Shell->cmd( timeout => $timeout, cmd => "$query -t $timeout" );
-    defined $lines[0] or return +{ $pkg => [ 0, 0 ] };
-
-    # print STDERR "parse <@lines>\n";
     for (@lines) {
+        defined or next;
+
         ## capture error status
         ## e.g. Users of DesignWare-Regression:  (Error: 10 licenses, unsupported by licensed server)
         if ( my ( $what, $total ) =
@@ -971,118 +1096,58 @@ sub query {
             next;
         }
 
-	# add in queued licenses
-	# identify with '*' prefix
-        if (my ($count) = /\s+ queued \s+ for  \s+ (\d+) \s+ licen[cs]es/x) {
+        # add in queued licenses
+        # identify with '*' prefix
+        if ( my ($count) = /\s+ queued \s+ for  \s+ (\d+) \s+ licen[cs]es/x ) {
             my ( $user, $host ) = map { lc } split;
             $host =~ s/\..*$//;    # unqualified hostname
 
             $license->{$feature}{"*$user\@$host"} += $count || 1;
-	    next;
-	}
+            next;
+        }
     }
 
     return $license;
 }
 
-# --------------------------------------------------------------------------
-# The (old) AVL licensing scheme
+# spawn threads and merge results from multiple 'query_server' calls
+sub query {
+    my $caller    = shift;
+    my $nothreads = shift;
 
-package Astlm;
-use vars qw( $query $timeout $environment );
+    if ( $nothreads or @servers <= 1 ) {
+        return $caller->query_server();
+    }
 
-BEGIN {
-    $timeout     = 60;
-    $environment = "ASTLM_CONFIG_FILE";
+    ## REMOVE REMAINDER FOR UNTHREADED PERL
 
-    for ($environment) {
-        if ( $ENV{$_} ) {
-            $query = "almstat -c $ENV{$_}";
-            push @License::Manager, __PACKAGE__;
+    my @threads;    # record the thread ids here
+
+    for my $server (@servers) {
+        my $thr = threads->create( sub { $caller->query_server($server) } );
+        if ( defined $thr ) {
+            push @threads, $thr;
         }
         else {
-            ## warn "(WW) ", __PACKAGE__, ": skip query, '\$$_' not set\n";
-            undef $query;
+            warn "could not start thread for server $server\n;";
         }
     }
-}
 
-sub env {
-    return $environment;
-}
+    # collect data, waiting for all threads to finish
+    my @returned;
+    for my $thr (@threads) {
+        push @returned, $thr->join();
+    }
 
-sub timeout {
-    my ( $caller, $value ) = @_;
-    ( $value ||= 0 ) > 0 or $value = 60;
-    $timeout = $value;
-}
-
-# --------------------------------------------------------------------------
-# PARSE Astlm output that looks like this:
-#
-# AST License Manager v2.02 (Build: Jul  5 2000), running on zsaibm2,  up 4 days
-#    (c) Copyright 1996-1999, AVL-Graz, All Rights Reserved
-#
-# License file: /opt/astlm/ASTlm/astlm.license
-#
-# --------------------------------------------------------------------------
-# License:         fire v70b   Expiration: 6/2003, 5 of 8 nodes free
-#
-#        Host       User          IPAddr    Pid    STime    VTime   UpTime
-#       host1      user1   xxx.xx.xx.xxx   5590   Jan 30 24:13:33   1 day
-#       host1      user2   xxx.xx.xx.xxx   5782   Jan 30 24:13:33   1 day
-# long_hostna      user4   xxx.xx.xx.xxx  13700 14:40:15  0:02:38  0:02:38
-# --------------------------------------------------------------------------
-
-# return:
-# HASHREF => {
-#    feature => {
-#       total  => number,
-#       "user@machine nlicense" => occurances,
-#       "user@machine nlicense" => occurances,
-#    },
-# }
-#
-
-sub query {
-    my $caller  = shift;
-    my $pkg     = __PACKAGE__;
+    # merge results together - traverse a list of hash-of-hashes
     my $license = {};
-    my $feature;
-
-    my @lines = Shell->cmd( timeout => $timeout, cmd => "$query" );
-    defined $lines[0] or return +{ $pkg => [ 0, 0 ] };
-
-    ### print STDERR "parse <@lines>\n";
-
-    for (@lines) {
-        if (/^----+/) {    # separator
-            undef $feature;
-            next;
-        }
-
-        if (
-            my ( $what, $total ) =
-            /^Licen[cs]e: \s+ (\S+) \s+ .+?, \s+
-	    \d+ \s+ of \s+ (\d+) \s+ nodes/x
-          )
-        {
-            $feature = $what;
-            $license->{$feature}{total} += $total;
-            next;
-        }
-
-        $feature or next;
-        /^\s+ Host \s+ User/x and next;
-
-        if ( my ( $host, $user, $ip ) = /^\s*(\S+)\s+(\S+)\s+(\S+)\s+/ ) {
-            ## avoid truncated hostnames - hostname via IP address
-            if ( my @a = ( $ip =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ ) ) {
-                use Socket;
-                $host = gethostbyaddr( pack( 'C4', @a ), &AF_INET ) || $host;
+    for my $hash (@returned) {
+        for my $feature ( keys %$hash ) {
+            my $subhash = $hash->{$feature};
+            for my $k ( keys %$subhash ) {
+                my $v = $subhash->{$k};
+                $license->{$feature}{$k} += $v;
             }
-            $host =~ s/\..*$//;    # unqualified hostname
-            $license->{$feature}{"\L$user\@$host 1"}++;
         }
     }
 
@@ -1092,12 +1157,15 @@ sub query {
 1;
 
 # --------------------------------------------------------------------------
+# a class for combining several types of license managers
+# assumes that the same license feature cannot be managed by more than
+# a single license manager
 
 package License;
 
 sub timeout {
     my ( $caller, $value ) = @_;
-    ( $value ||= 0 ) > 0 or $value = 60;
+    ( $value ||= 0 ) > 0 or $value = 15;
     $_->timeout($value) for @License::Manager;
 }
 
@@ -1114,13 +1182,14 @@ sub env {
 1;
 
 # --------------------------------------------------------------------------
+# provide paths to GridEngine bin/ and utilbin/
 
 package Sge;
-use vars qw( $binary_path $utilbin_path );
+our ( $bin, $utilbin );
 
 BEGIN {
-    $binary_path  = $ENV{SGE_BINARY_PATH} || '';
-    $utilbin_path = $ENV{SGE_utilbin}     || '';
+    $bin     = $ENV{SGE_BINARY_PATH} || '';
+    $utilbin = $ENV{SGE_utilbin}     || '';
 
     if ( -d ( $ENV{SGE_ROOT} || '' ) ) {
         my $arch = $ENV{SGE_ARCH}
@@ -1129,11 +1198,11 @@ BEGIN {
 
         chomp $arch;
 
-        -d $binary_path  or $binary_path  = "$ENV{SGE_ROOT}/bin/$arch";
-        -d $utilbin_path or $utilbin_path = "$ENV{SGE_ROOT}/utilbin/$arch";
+        -d $bin     or $bin     = "$ENV{SGE_ROOT}/bin/$arch";
+        -d $utilbin or $utilbin = "$ENV{SGE_ROOT}/utilbin/$arch";
     }
 
-    for ( $binary_path, $utilbin_path ) {
+    for ( $bin, $utilbin ) {
         if ( -d $_ ) {
             s{/*$}{/};
         }
@@ -1149,13 +1218,10 @@ BEGIN {
 
 # --------------------------------------------------------------------------
 package Qconf;
-use vars qw( $query $timeout );
-
-use Data::Dumper;
+our ($timeout);
 
 BEGIN {
-    $timeout = 10;
-    $query   = $Sge::binary_path . "qconf -se global";
+    $timeout              = 10;
     $ENV{SGE_SINGLE_LINE} = 1;    # do not break up long lines with backslashes
 }
 
@@ -1165,10 +1231,15 @@ sub timeout {
     $timeout = $value;
 }
 
+# query 'complex_values' from the global host
 sub query {
     my $caller = shift;
 
-    my @lines = Shell->cmd( timeout => $timeout, cmd => "$query" );
+    my @lines = Shell->cmd(
+        cmd     => $Sge::bin . "qconf -se global",
+        timeout => $timeout,
+    );
+
     defined $lines[0] or return +{};
 
     return +{
@@ -1179,22 +1250,23 @@ sub query {
     };
 }
 
+# set 'complex_values' of the global host
 sub mattr {
     my $caller = shift;
     my $val    = shift;
 
     if ($val) {
         Shell->cmd(
+            cmd => $Sge::bin
+              . "qconf -mattr exechost complex_values $val global",
             timeout => 15,
-            cmd     => $Sge::binary_path
-              . "qconf -mattr exechost complex_values $val global"
         );
     }
 }
 
 # determine what exists in the globals and in complex_values and has changed
 #
-# Prototype ->diff( HASHREF1, HASHREF2 );
+# Prototype ->diff( REF1, REF2 );
 #
 #
 # HASHREF1 => {		# from the 'qconf -se global'
@@ -1202,12 +1274,15 @@ sub mattr {
 # }
 #
 # HASHREF2 => {		# from 'munge_licenses'
-#     feature =>
-#        [ flags, total, limit, ext_count, int_count, [ extern ], [ intern ] ],
+#     feature => {
+#        flags => INT,
+#        info  => { total => INT, limit => INT, extern => INT },
+#        ...
+#     }
 # }
 #
 # determine the number of license that can be managed by the gridengine:
-#  $available = $total - $ext_count
+#   managed = total - external_count
 #
 sub diff {
     my $caller = shift;
@@ -1216,14 +1291,14 @@ sub diff {
 
     for my $resource ( keys %$complex_values ) {
         my $entry = $licenses->{$resource} or next;
+        next if $entry->{flags};    # skip internal/ignored values
 
         my ( $total, $limit, $extern ) =
           @{ $entry->{info} }{qw( total limit extern )};
 
-        defined $limit and $limit < $total or undef $limit;
-
         my $managed = $total - $extern;
-        if ( defined $limit and $managed > $limit ) {
+
+        if ( defined $limit and $limit < $managed ) {
             $managed = $limit;
         }
 
@@ -1239,13 +1314,11 @@ sub diff {
 1;
 
 # --------------------------------------------------------------------------
-
 package Qstat;
-use vars qw( $query $timeout );
+our ($timeout);
 
 BEGIN {
     $timeout = 15;
-    $query   = $Sge::binary_path . "qstat -r -s prs -xml";
 }
 
 sub timeout {
@@ -1263,13 +1336,13 @@ sub timeout {
 #     <job_list state="running">
 #       <JB_job_number>934</JB_job_number>
 #       <JAT_prio>0.56000</JAT_prio>
-#       <JB_name>k-v20c_z04</JB_name>
-#       <JB_owner>stadler</JB_owner>
+#       <JB_name>my_job_name</JB_name>
+#       <JB_owner>user_name</JB_owner>
 #       <state>r</state>
 #       <JAT_start_time>11/30/2004 10:38:23</JAT_start_time>
 #       <queue_name>cfd@host.domain</queue_name>
 #       <slots>1</slots>
-#       <hard_request name="fire7">1</hard_request>
+#       <hard_request name="license">1</hard_request>
 #       <hard_req_queue>cfd</hard_req_queue>
 #     </job_list>
 #   </queue_info>
@@ -1297,8 +1370,10 @@ sub query {
     my $caller  = shift;
     my $license = {};
 
-    my $lines = Shell->cmd( timeout => $timeout, cmd => "$query" )
-      or return $license;
+    my $lines = Shell->cmd(
+        cmd     => $Sge::bin . "qstat -u '*' -xml -r -s prs",
+        timeout => $timeout,
+    ) or return $license;
 
     my %re = (
         state => qr{<state>([A-Za-z]+)</state>},

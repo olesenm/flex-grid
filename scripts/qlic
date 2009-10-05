@@ -66,12 +66,13 @@ package LCache;
             {
                 $self->{-license}{$license} ||= {
                     -where => {},
-                    map { $_ => 0 } ( "-managed", @tags ),
+                    map { $_ => 0 } ( qw( -managed -tracked ), @tags ),
                 };
 
                 if ( $tag =~ m{^($re_tags)$} ) {
                     $self->{-license}{$license}{$tag} = $count;
                     $self->{-license}{$license}{-managed}++ if /:/;
+                    $self->{-license}{$license}{-tracked}++ if /==/;
                 }
                 elsif ( $tag =~ m{[*@]} ) {    ## 'user@host' or 'user*'
                     $self->{-license}{$license}{-where}{$tag} = $count;
@@ -114,7 +115,7 @@ import LCache;
 
 our ( $VERSION, $DATE ) = do {
     my ( $ver, $date ) =
-      q{$Id: qlic,v 1.8 2005/12/14 14:17:38 cfdadmin Exp $} =~
+      q{$Id: qlic,v 1.10 2006/11/22 14:39:19 cfdadmin Exp $} =~
       m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
     $date =~ s{/}{-}g;    # ISO-formatted
 
@@ -145,7 +146,7 @@ with options:
   <$cache>
 
 version $VERSION ($DATE)
-copyright (c) 2003-05 <Mark.Olesen\@ArvinMeritor.com>
+copyright (c) 2003-06 <Mark.Olesen\@ArvinMeritor.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -252,12 +253,15 @@ for my $feature ( sort keys %license ) {
         @list = (
             $feature, @{$count}{qw( total limit extern intern waiting global )}
         );
-        unless ( $license{$feature}{-managed} ) {
+
+        if ( $license{$feature}{-tracked} ) {
+            $_ = "*" for $list[3];
+        } elsif (not $license{$feature}{-managed} ) {
             $_ = "*" for $list[4];
         }
 
-        # '-' is easier to read than '0'
-        $_ ||= '-' for @list;
+        # easy to read representation for zero
+        $_ ||= '.' for @list;
 
         write;
     }
