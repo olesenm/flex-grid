@@ -114,7 +114,7 @@ import LCache;
 
 our ( $VERSION, $DATE ) = do {
     my ( $ver, $date ) =
-      q{$Id: qlic,v 1.7 2005/11/15 10:16:14 cfdadmin Exp $} =~
+      q{$Id: qlic,v 1.8 2005/12/14 14:17:38 cfdadmin Exp $} =~
       m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
     $date =~ s{/}{-}g;    # ISO-formatted
 
@@ -137,6 +137,7 @@ with options:
   -f       display free licenses only
   -q       display free licenses via qhost query
   -u       license usage via 'lacct'
+  -U       license usage per user via 'lacct'
   -w       show who/where ('*' indicates waiting jobs)
   -h       this help
 
@@ -154,8 +155,16 @@ USAGE
 
 # -------------------------------------------------------------------------
 my %opt;
-getopts( 'hac:Ddfquw', \%opt ) or usage();
+getopts( 'hac:DdfqUuw', \%opt ) or usage();
 $opt{h} and usage();
+
+# user-based usage
+if ( $opt{U} ) {
+    my @query = ( "lacct", "-u" );
+    push @query, map { $opt{$_} ? "-$_" : () } qw( a );
+    exec @query;
+    exit 2;
+}
 
 if ( $opt{u} ) {
     my @query = "lacct";

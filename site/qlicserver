@@ -13,7 +13,6 @@ import Qstat;
 # CUSTOMIZE THESE SETTINGS TO MATCH YOUR REQUIREMENTS:
 #
 my $config = {
-
     ## lookup:
     #   Map license 'features' (names) as provided by the license
     #   manager(s) to resources names (with long and short names).
@@ -25,8 +24,7 @@ my $config = {
     lookup => {
         -EZsurf     => "prosurf",
         -GTise      => "gtise",
-        -HyperWorks => "hypermesh",
-        -cfdwm      => "cfdwm",
+        -HyperWorks => "hyper",
         -hexa       => "hexa",
         -med        => "med",
         -tetra      => "tetra",
@@ -36,10 +34,9 @@ my $config = {
         GTpowerX    => "gtpower",
         NASTRAN     => "nastran",
         abaqus      => "abaqus",
-        cfd_solver  => "fire8",        # AVL/FIRE (FLexLM)
         fire        => "fire7",        # AVL/FIRE w/ astlm manager
-        hpcdomains  => "starp",        # Star-CD serial
-        starsuite   => "stars",        # Star-CD parallel
+        hpcdomains  => "starp",        # Star-CD parallel
+        starsuite   => "stars",        # Star-CD serial
         starpar     => "starjob",      # Star-CD parallel starter
     },
 
@@ -73,9 +70,8 @@ my $config = {
     #   resource => INTEGER
     #   resource => FLOAT < 1.0
     #
-    limit => { fire7 => 4, gtpower => 4, stars => 2 },
+    limit => { gtpower => 0, nastran => 3, stars => 2 },
 };
-
 #
 #
 # END OF CUSTOMIZE SETTINGS
@@ -130,7 +126,7 @@ my $CmdLine = join( " " => $Script, @ARGV );
 
 our ( $VERSION, $DATE ) = do {
     my ( $ver, $date ) =
-      q{$Id: qlicserver,v 1.14 2005/11/15 10:39:19 cfdadmin Exp $} =~
+      q{$Id: qlicserver,v 1.16 2006/04/13 13:05:48 cfdadmin Exp $} =~
       m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
     $date =~ s{/}{-}g;    # ISO-formatted
 
@@ -146,10 +142,11 @@ usage: $Script [OPTION] [ARGS]
   Query availability of floating licenses for the GridEngine.
 
 options:
+   -c      show complex definitions (format as per 'qconf -sc')
+           for possible inclusion via 'qconf -Mc ...'
+
    -C      provide initial values for
            'qconf -mattr exechost complex_values ... global'
-
-   -c      show complexes (format as per 'qconf -sc');
 
    -d      daemonize.
            The optional argument is used as the delay [s] between queries
@@ -158,6 +155,10 @@ options:
    -D      debugging info for the developer
 
    -h      help
+
+   -i      information about license features
+           (generates text for the lookup table)
+
    -k      kill running daemon
 
    -l resource=value,...
@@ -179,11 +180,11 @@ options:
    -w      wake-up daemon from sleep
 
 This program has 2 major modes:
-  1) Adjust the number of managed licenses, based on license availability
+  1. Adjust the number of managed licenses, based on license availability
      and number of granted resources (as determined by 'qstat')
      using the 'qconf -mattr exechost complex_values ... global' command
 
-  2) Query the license server for the availability of requested resources.
+  2. Query the license server for the availability of requested resources.
      Exit with '99' (requeue) if the condition cannot be satisfied.
      Returns the available resources.
 
@@ -197,7 +198,7 @@ NOTES:
   the author directly.
 
 version $VERSION ($DATE)
-copyright (c) 2003-05 <Mark.Olesen\@ArvinMeritor.com>
+copyright (c) 2003-06 <Mark.Olesen\@ArvinMeritor.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -207,7 +208,7 @@ USAGE
 
 # --------------------------------------------------------------------------
 my %opt;
-getopts( "hCcDdkl:nqt:w", \%opt );    # tolerate faults on unknown options
+getopts( "hCcDdikl:nqt:w", \%opt );    # tolerate faults on unknown options
 $opt{h} and usage();
 my $Debugging ||= $opt{D};
 
@@ -670,6 +671,37 @@ PRINT
 }
 
 # ---------------------------------------------------------------------------
+# '-i'
+# query the license server for license features
+# ---------------------------------------------------------------------------
+if ( $opt{i} ) {
+    my $license = License->query();
+
+    print "\tlookup => {\t# license features from server\n";
+
+    for ( sort keys %$license ) {
+        my ( $comment, $feature, $lookup ) = ( "", $_, lc $_ );
+
+        if ( $config->{lookup}{$_} ) {
+            ($lookup) = @{ $config->{lookup}{$_} };
+        }
+        elsif ( $config->{lookup}{"-$feature"} ) {
+            $feature = "-$feature";
+            $comment = "\t## reported but unmanaged";
+            ($lookup) = @{ $config->{lookup}{$feature} };
+        }
+        else {
+            $comment = "\t## new";
+        }
+
+        print qq{\t\t"$feature"\t\t=> "$lookup",$comment\n};
+    }
+
+    print "\t},\n", "\t#\n";
+    exit 0;
+}
+
+# ---------------------------------------------------------------------------
 # '-l resource=value,...'
 # query the license server for the availability
 # ---------------------------------------------------------------------------
@@ -722,14 +754,13 @@ my $daemon = $opt{d};
 if ($daemon) {    # daemonize
     ( my $delay = (shift) || '' );    # delay from command args
     $delay =~ /^\d+$/ or undef $delay;
-    $daemon = $delay || 60;    # provide default delay
+    $daemon = $delay || 60;           # provide default delay
 
-    ## terminate old processes
-    kill_daemon 15;    # TERM
-    my $ppid = getppid();
-
-    my $pid = fork;
-    exit if $pid;              # let parent exit
+    # terminate old processes
+    kill_daemon 15;                   # TERM
+    my $ppid = getppid();             # get ppid *before* forking
+    my $pid  = fork;
+    exit if $pid;                     # let parent exit
     defined $pid or die "Couldn't fork: $!";
 
     # this needs more testing ...
@@ -749,19 +780,19 @@ if ($daemon) {    # daemonize
     #
     *processing = sub {
         if ( $daemon > 0 and kill 0 => $ppid )
-        {              ## daemon still running and ppid still alive
+        {    # daemon still running and ppid still alive
             sleep( $daemon || 0 );
         }
         else {
-            $daemon = 0;    ## ppid looks dead - let's die too
+            $daemon = 0;    # ppid looks dead - let's die too
         }
         return $daemon;
     };
 }
 else {
     *processing = sub {
-	sleep( $daemon || 0 );
-	return $daemon;
+        sleep( $daemon || 0 );
+        return $daemon;
     };
 }
 
@@ -1274,7 +1305,7 @@ sub query {
         slots => qr{<slots>(\d+)</slots>},
         job   => qr{<JB_job_number>(.+?)</JB_job_number>},
         user  => qr{<JB_owner>(.+?)</JB_owner>},
-        host  => qr{<queue_name>.+?\@(.+?)\..*</queue_name>},    # unqualified
+        host  => qr{<queue_name>.+?\@(.+?)</queue_name>},
     );
 
     for ( grep { $_ } split m{</job_list>}, $lines ) {
@@ -1296,7 +1327,8 @@ sub query {
             }
         }
         else {
-            $host or last;    ## safety
+            $host or next;    # safety
+            $host =~ s{\..*$}{};    # strip domain - unqualified host name
             my $identifier = "\L$user\@$host";
             while (
                 s{<(\S*hard_request).*?\s+name=\"(\S+)\".*?>(\d[\.\d]*)</\1>}{})
