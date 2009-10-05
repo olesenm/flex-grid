@@ -12,6 +12,7 @@ import Sge;
 import Qconf;
 
 my ( $Script, $Path ) = fileparse $0;
+my ($releaseDate) = qw( 2009-04-28 );
 
 ###############################################################################
 ###############################################################################
@@ -53,26 +54,37 @@ my $config = {
    | Resources that are not served and not derived are internal resources
    + -->
  <resources type="overwrite">
-  <resource name="abaqus" served="abaqus"/>
-  <resource name="ansys" served="ansys" type="track"/>
-  <resource name="gtise" served="GTise" type="track"/>
-  <resource name="gtpower" served="GTpowerX" limit="4"/>
-  <resource name="hexa" served="aihexa" type="track"/>
-  <resource name="hyper" served="HyperWorks" type="track"/>
-  <resource name="med" served="aimed" type="track"/>
-  <resource name="nastran" served="NASTRAN" limit="3"/>
-  <resource name="proam" served="proam" type="track"/>
-  <resource name="prostar" served="prostar" type="track"/>
-  <resource name="starjob" served="starpar" urgency="100" note="STAR-CD parallel starter"/>
-  <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
-  <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
-  <resource name="tetra" served="aitetra" type="track"/>
-  <resource name="foam"/>
-  <resource name="thomat" note="abaqus high temperature modelling"/>
-  <derived name="starcd">
-   <element>starp</element>
-   <element>stars</element>
-  </derived>
+  <!-- cfd applications -->
+   <resource name="foam"/>
+   <resource name="starjob" served="starpar" urgency="100" note="STAR-CD parallel starter"/>
+   <resource name="starp"   served="hpcdomains" note="STAR-CD parallel"/>
+   <resource name="stars"   served="starsuite" limit="2" note="STAR-CD serial"/>
+   <derived name="starcd">
+    <element>starp</element>
+    <element>stars</element>
+   </derived>
+
+  <!-- fea applications -->
+   <resource name="abaqus"   served="abaqus"/>
+   <resource name="hyper"    served="GridWorks"/>
+   <resource name="nastran1" served="NASTRAN" from="auglic1"/>
+   <resource name="nastran2" served="NASTRAN" from="auglic2"/>
+   <derived name="nastran">
+    <element>nastran1</element>
+    <element>nastran2</element>
+   </derived>
+   <resource name="thomat" note="abaqus high temperature modelling"/>
+
+  <!-- other applications -->
+   <resource name="gtpower" served="GTpowerX" limit="4"/>
+
+  <!-- tracked applications -->
+   <resource name="gtise"   served="GTise"   type="track"/>
+   <resource name="hexa"    served="aihexa"  type="track"/>
+   <resource name="med"     served="aimed"   type="track"/>
+   <resource name="proam"   served="proam"   type="track"/>
+   <resource name="prostar" served="prostar" type="track"/>
+
  </resources>
 </qlicserverConfig>
 },
@@ -85,15 +97,6 @@ my $config = {
 ###############################################################################
 ###############################################################################
 
-our ( $VERSION, $DATE ) = do {
-    my ( $ver, $date ) =
-      q{$Id: qlicserver,v 1.44 2008/02/29 10:35:11 cfdadmin Exp $} =~
-      m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
-    $date =~ s{/}{-}g;    # ISO-formatted
-
-    ( $ver, $date );
-};
-
 # --------------------------------------------------------------------------
 sub usage {
     $! = 0;               # clean exit
@@ -103,63 +106,66 @@ usage: $Script [OPTION] [PARAM]
   Query availability of floating licenses for the GridEngine.
 
 help/debug options:
-    -h      help
+  -h        help
 
 initialization options:
-    -c      show complex definitions (format as per 'qconf -sc')
+  -c        show complex definitions (format as per 'qconf -sc')
             for possible inclusion via 'qconf -Mc ...'
 
-    -C      provide initial values for
+  -C        provide initial values for
             'qconf -mattr exechost complex_values ... global'
 
-    -i      information about license features
+  -i        information about license features
             (generates text for the config lookup table)
 
 query options:
-    -l resource=value,...
+  -l resource=value,...
+
             similar to qsub(1), query the license server for the availability
             of the requested resources. A missing value is treated as 1.
-            The resource 'slots' will be used to scale the resource requests.
-            Prints the resources available and exits with '99' if the
-            condition cannot be satisfied.
+            The resource 'slots' will be used to scale the resource requests
+            as required. Prints the resources available and exits with '99' if
+            the condition cannot be satisfied. Only externally served resources
+            are checked - resources internal to the GridEngine should never
+            need this check.
 
-    -n      suppress adjustment of the managed licenses (useful for testing)
+  -n        suppress adjustment of the managed licenses (useful for testing)
 
 daemon options:
-    -d      run query as a daemon
+  -d        run query as a daemon
 
-    -k      kill running daemon
+  -k        kill running daemon
 
-    -w      wake-up daemon from sleep
+  -w        wake-up daemon from sleep
 
 params:
-    dir=DIR
+  dir=DIR
             base directory for output,qhost,qstat parameters
 
-    output=FILE
+  output=FILE
             save query status to FILE
 
-    qhost=FILE
+  qhost=FILE
             add extra qhost query and save status to FILE
 
-    qstat=FILE
+  qstat=FILE
             save qstat query to FILE
 
-    timeout=N
+  timeout=N
             command timeout in seconds (default: 10 seconds)
 
-    LM_LICENSE_FILE=STRING
+  LM_LICENSE_FILE=STRING
             override environment setting for server query
 
-    lmutil=STRING
+  lmutil=STRING
             fully qualified path to lmutil command
 
 static params:
-    delay=N
+  delay=N
             waiting period in seconds between queries in daemon mode
             (a delay of 0 is interpreted as 30 seconds)
 
-    ppid=(ppid | N | CMD)
+  ppid=(ppid | N | CMD)
             which parent process id to watch in daemon mode.
             This can be decisive for migration etc.
                 ppid = watch the lauching parent (default)
@@ -167,54 +173,51 @@ static params:
                 N    = watch a particular pid
 
 command-line params:
-    debug   emit debug information for the developer
+  debug     emit debug information for the developer
 
-    config=FILE
+  config=FILE
             specify alternative configuration file
             (default: $config->{-config})
 
-    limits=FILE
+  limits=FILE
             specify alternative limits file/directory
             (default: $config->{-limits})
 
 This program has 2 major modes:
-  1.  Adjust the number of managed licenses, based on license availability
-      and number of granted resources (as determined by 'qstat')
-      using the 'qconf -mattr exechost complex_values ... global' command
+  1. Adjust the number of managed licenses, based on license availability
+     and the number of granted resources (as determined by 'qstat') using the
+     'qconf -mattr exechost complex_values ... global' command
 
-  2.  Query the license server for the availability of requested resources.
-      Exit with '99' (requeue) if the condition cannot be satisfied.
-      Prints the resources available.
+  2. Query the license server for the availability of requested resources.
+     Exit with '99' (requeue) if the condition cannot be satisfied.
+     Prints the resources available.
 
 FILES:
-    The configuration can be hardcoded into this program and/or
-    is controlled via an XML configuration file:
+  The configuration can be hardcoded into this program and/or controlled
+  via an XML configuration file:
+      $config->{-config}
 
-        '$config->{-config}'
+  The current limits for the resources are specified here:
+      $config->{-limits}
 
-    The current limits for the resources are specified in:
-
-        '$config->{-limits}'
-
-    This can be either an XML file, or a directory.
-    When it is a directory, the limits are specified as a single digit
-    in each file that corresponds to a resource name.
+  This can be either an XML file, or a directory.
+  When it is a directory, the limits are specified as a single digit
+  in each file that corresponds to a resource name.
 
 NOTES:
   Further information about the configuration can be found on the wiki
   http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Configuration
 
-  This code is provided as a courtesy to other users with absolutely
-  no guarantees! Usage questions should be posted to the
-  users\@gridengine.sunsource.net mailing list - please do not email
-  the author directly.
+  This code is provided as a courtesy to other users with absolutely no
+  guarantees!  Post usage questions to the users\@gridengine.sunsource.net
+  mailing list - please do not email the author directly.
 
-version $VERSION ($DATE)
-copyright (c) 2003-08 <Mark.Olesen\@emconTechnologies.com>
+version ($releaseDate)
+copyright (c) 2003-09 <Mark.Olesen\@emconTechnologies.com>
 
 Licensed and distributed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 2.5 License.
-http://creativecommons.org/licenses/by-nc-sa/2.5
+Attribution-NonCommercial-ShareAlike 3.0 License.
+http://creativecommons.org/licenses/by-nc-sa/3.0
 USAGE
 }
 
@@ -291,7 +294,9 @@ sub resolveOutputFile {
     {
         $file = $config->{-parameter}{$name};
 
-        if ( defined $dir and $file !~ m{^/} and $file ne "-" ) {
+        if ( defined $dir and length $dir and $file !~ m{^/} and $file ne "-" )
+        {
+            -d $dir or mkdir $dir;
             $file = "$dir/$file";
         }
     }
@@ -299,17 +304,18 @@ sub resolveOutputFile {
     return $file;
 }
 
+
 #
 # update the configuration as required
 #
-sub update_config {
+sub updateConfig {
     my $configFile    = $config->{-config};
     my $defaultConfig = $config->{-defaultConfig};
 
-    $config->{-configUpdate} ||= 0;
+    $config->{-configUpdate} ||= 0;    # previous file update time
 
     my $needUpdate;
-    keys %{ $config->{-resources} } or $needUpdate++;
+    keys %{ $config->{-resources} } or $needUpdate++;    # first-time
 
     my $fileString;
     if ( defined $configFile and -f $configFile and -r _ ) {
@@ -335,21 +341,22 @@ sub update_config {
     return unless $needUpdate;
 
     # clear old values
-    $config->{-parameter} = {};
-    $config->{-resources} = {};
-    $config->{-derived}   = {};
-    $config->{-intern}    = {};
-    $config->{-managed}   = {};
-    $config->{-lookup}    = {};
+    $config->{-parameter} = {};    # command-line and file '<param>' entries
+    $config->{-resources} = {};    # all the resources, original parameters
+    $config->{-derived}   = {};    # derived resources only
+    $config->{-intern}    = {};    # internal resources only
+    $config->{-managed}   = {};    # managed internal/external/derived resources
+    $config->{-lookup}    = {};    # reverse lookup (complex -> resource)
+    $config->{-mapFrom}   = {};    # (optional) mapping based on server
 
     # config precedence:
-    #  -defaultConfig
-    #  -config  (FILE)
+    #   -defaultConfig (hard-coded)
+    #   -config  (FILE)
 
     # parameters precedence:
-    #  -defaultConfig
-    #  -config  (FILE)
-    #  command-line
+    #   -defaultConfig (hard-coded)
+    #   -config  (FILE)
+    #   command-line
 
     my ( %cfg, %param );
     for ( $defaultConfig, $fileString ) {
@@ -390,8 +397,8 @@ sub update_config {
         {
             my %hash = parseXMLattrib($1);
             my $name = delete $hash{name};
+            ## overwrite old value
             if ( defined $name ) {
-                ## overwrite old value
                 $cfg{$name} = {%hash};
             }
         }
@@ -428,37 +435,53 @@ sub update_config {
     %{ $config->{-parameter} } = %param;
 
     for my $name ( keys %cfg ) {
+        ## All managed complexes are 'consumable' (mark as zero)
+        ## unless otherwise noted
+        my $type;
+        if ( exists $cfg{$name}{type} ) {
+            $type = $cfg{$name}{type};
+        }
+        $type ||= 0;
+
         if ( exists $cfg{$name}{element} ) {
-            ## transfer derived
+            ## transfer derived information
+            # NB: probably can only have normal consumables
             $config->{-derived}{$name} = delete $cfg{$name};
-            ## derived resources are always managed
-            $config->{-managed}{$name} = $name;
         }
         elsif ( exists $cfg{$name}{served} ) {
             ## create served -> resource lookup
-            my $type   = 0;
             my $served = $cfg{$name}{served};
-            if ( exists $cfg{$name}{type} ) {
-                $type = $cfg{$name}{type};
-            }
-            $config->{-lookup}{$served} = [ $name, $type ];
 
-            ## resources is managed
-            if ( not $type ) {
-                $config->{-managed}{$name} = $name;
+            if ( exists $cfg{$name}{from} ) {
+                ## insert server-specific remapping, server name in lowercase
+                for ( map { split } lc $cfg{$name}{from} ) {
+                    $config->{-mapFrom}{$_}{$served} = $name;
+
+                    ## since remapping occurs in the query, '-lookup' is an identity
+                    $config->{-lookup}{$name} = [ $name, $type ];
+                }
+            }
+            else {
+                $config->{-lookup}{$served} = [ $name, $type ];
             }
         }
         else {
             ## not served and not derived -> internal resource
+            ## transfer information
             $config->{-intern}{$name} = delete $cfg{$name};
         }
+
+        ## only tracked resources are unmanaged
+        $config->{-managed}{$name} = $type unless $type =~ /track/i;
     }
 
     # assign the rest
     %{ $config->{-resources} } = %cfg;
 
-    # update parameters:
+    ## TODO:
+    ## check that the derived type is consistently job/non-job
 
+    # update parameters:
     # adjust timeout - the license server is the Achilles heel
     if ( exists $config->{-parameter}{timeout} ) {
         Shell->timeout( $config->{-parameter}{timeout} );
@@ -494,16 +517,20 @@ sub update_config {
 #  </qlicserverLimits>
 #
 # OR from files within the specified directory:
-# The limits are specified as a single digit in each file that
-# corresponds to a resource name.
-# Negative limits are deducted from the total.
+# The limits are specified as a single digit in each file that corresponds
+# to a resource name. Negative limits are deducted from the total.
 #
-sub update_limits {
+sub updateLimits {
     my $diskValues = $config->{-limits};
     my $limits;
 
     # get defaults
-    for my $href ( $config->{-intern}, $config->{-resources} ) {
+    for my $href (
+        $config->{-intern},       ##
+        $config->{-resources},    ##
+        $config->{-derived},      ##
+      )
+    {
         for my $name ( keys %$href ) {
             if ( exists $href->{$name}{limit} ) {
                 my $limit = $href->{$name}{limit};
@@ -582,7 +609,7 @@ sub update_limits {
 }
 
 #
-# Prototype: munge_licenses( HASHREF1 [, HASHREF2, [, HASHREF3]] )
+# Prototype: mungeLicenses( HASHREF1 [, HASHREF2, [, HASHREF3]] )
 #
 # HASHREF1 => {         # from the license manager
 #    feature => {
@@ -628,7 +655,7 @@ sub update_limits {
 #    },
 # }
 #
-sub munge_licenses {
+sub mungeLicenses {
     my $served   = shift;
     my $consumed = shift || {};
     my $limits   = shift || {};
@@ -647,7 +674,7 @@ sub munge_licenses {
         my $total = delete $externUsers->{total} || 0;
 
         # internal job allocation, jobs waiting
-        my $internUsers  = delete( $consumed->{$resource} ) || {};
+        my $internUsers  = delete( $consumed->{$resource} )  || {};
         my $waitingUsers = delete( $internUsers->{waiting} ) || {};
 
         # potential management limits
@@ -742,34 +769,58 @@ sub munge_licenses {
             $entry->{total} += $part->{total} || 0;
             $entry->{limit} += $part->{limit} || 0;
 
-            for ( keys %{ $part->{-extern} } ) {
-                $entry->{-extern}{$_} += $part->{-extern}{$_};
+            for my $category ( keys %{ $part->{users} } ) {
+                for ( keys %{ $part->{users}{$category} } ) {
+                    my $ref = $part->{users}{$category}{$_};
+                    if ( ref $ref ) {
+                        for my $k ( keys %$ref ) {
+                            $entry->{users}{$category}{$_}{$k} += $ref->{$k};
+                        }
+                    }
+                    else {
+                        $entry->{users}{$category}{$_} +=
+                          $part->{users}{$category}{$_};
+                    }
+                }
+            }
+        }
+
+
+        # the specified limit might be more stringent than that determined
+        # from the sub-resources
+        my $limit = $limits->{$resource};
+        if ( defined $limit ) {
+            if ( $entry->{limit} > $limit ) {
+                $limit += $entry->{total} if $limit < 0;
+                $limit = 0 if $limit < 0;
+                $entry->{limit} = $limit;
             }
         }
     }
 
     # remove usage that is already accounted for
     # remove non-existent / implausible entry
-    # prepend jobid with -ve to avoid it being processed more than once
+    # prepend jobid.taskid with -ve to prevent it from being processed more than once
     my $juggle = sub {
         my ( $externUser, $internUser ) = @_;
-        for my $job ( grep { $_ > 0 } keys %$internUser ) {
-            for ( keys %{ $internUser->{$job} } ) {
+
+        for my $jobIdent ( grep { /^\d+[\.\d]*$/ } keys %$internUser ) {
+            for ( keys %{ $internUser->{$jobIdent} } ) {
                 if (    $externUser->{$_}
-                    and $externUser->{$_} >= $internUser->{$job}{$_} )
+                    and $externUser->{$_} >= $internUser->{$jobIdent}{$_} )
                 {
-                    $externUser->{$_} -= $internUser->{$job}{$_};
-                    $internUser->{"-$job"}{$_} = delete $internUser->{$job}{$_};
+                    $externUser->{$_} -= $internUser->{$jobIdent}{$_};
+                    $internUser->{"-$jobIdent"}{$_} = delete $internUser->{$jobIdent}{$_};
                     $externUser->{$_} > 0 or delete $externUser->{$_};
                 }
             }
             ## remove empty hash references
-            keys %{ $internUser->{$job} } or delete $internUser->{$job};
+            keys %{ $internUser->{$jobIdent} } or delete $internUser->{$jobIdent};
         }
     };
 
     for my $resource ( keys %$report ) {
-        my $entry       = $report->{$resource};
+        my $entry        = $report->{$resource};
         my $externUsers  = $entry->{users}{extern} or next;    # cannot happen
         my $internUsers  = $entry->{users}{intern} or next;
         my $waitingUsers = $entry->{users}{waiting} ||= {};
@@ -827,8 +878,7 @@ sub munge_licenses {
         }
 
         # remove needless limiters
-        if ( $entry->{limit} >= $entry->{total} )
-        {
+        if ( $entry->{limit} >= $entry->{total} ) {
             delete $entry->{limit};
         }
 
@@ -874,13 +924,21 @@ sub munge_licenses {
 # }
 #
 sub qlic_output {
-    my $outputFile = shift;
-    my $report     = shift;
-    my $mattr      = hashrefToString(shift) || "NONE";
+    my $cacheFile = shift;
+    my $report    = shift;
+    my $mattr     = hashrefToString(shift) || "NONE";
 
-    local *STDOUT;
-    defined $outputFile or return;
-    open STDOUT, ">$outputFile" or return;
+    defined $cacheFile and length $cacheFile or return;
+
+    ## use temp file with rename to avoid race conditions
+    ## catch "-" STDOUT alias, and use 2-argument open for ">-" as well
+    my $tmpFile = $cacheFile;
+    if ( $cacheFile ne "-" ) {
+        $tmpFile .= ".TMP";
+        unlink $tmpFile;
+    }
+    local *FILE;
+    open FILE, ">$tmpFile" or return;
 
     # write dates, administration information, some environment variables
     my $time = time;
@@ -888,14 +946,20 @@ sub qlic_output {
     my $host = ( POSIX::uname() )[1];
     my $user = getpwuid $<;
 
+    # cluster names/locations
+    my $sgeRoot     = $ENV{SGE_ROOT}         || "";
+    my $sgeCell     = $ENV{SGE_CELL}         || "default";
+    my $clusterName = $ENV{SGE_CLUSTER_NAME} || "default";
+
     # header with comment about possible changes
-    print << "XML_TEXT";
+    print FILE << "XML_TEXT";
 <?xml version="1.0"?>
-<qlicserver release="$VERSION" releaseDate="$DATE">
+<qlicserver releaseDate="$releaseDate">
 <!-- adjustment:
      qconf -mattr exechost complex_values $mattr global
 -->
  <query>
+  <cluster name="$clusterName" root="$sgeRoot" cell="$sgeCell"/>
   <host>$host</host>
   <user>$user</user>
   <time epoch="$time">$date</time>
@@ -906,7 +970,7 @@ XML_TEXT
     # environment
     for (qw( SGE_ROOT SGE_CELL SGE_ARCH SGE_BINARY_PATH SGE_qmaster )) {
         if ( $ENV{$_} ) {
-            print qq{  <env name="$_">$ENV{$_}</env>\n};
+            print FILE qq{  <env name="$_">$ENV{$_}</env>\n};
         }
     }
 
@@ -914,7 +978,9 @@ XML_TEXT
     for (@License::Manager) {
         my ( $name, $value ) = ( $_->envname(), $_->envvalue() );
         if ( defined $name and not exists $config->{-parameter}{$name} ) {
-            print qq{  <env name="$name">} . ( $value || '' ) . qq{</env>\n};
+            print FILE qq{  <env name="$name">}
+              . ( $value || '' )
+              . qq{</env>\n};
         }
     }
 
@@ -922,19 +988,19 @@ XML_TEXT
     for ( sort keys %{ $config->{-parameter} } ) {
         my $value = $config->{-parameter}{$_};
         if ( defined $value and length $value ) {
-            print qq{  <param name="$_">$value</param>\n};
+            print FILE qq{  <param name="$_">$value</param>\n};
         }
     }
 
     # finish parameters and start resources
-    print                      ##
+    print FILE                 ##
       qq{ </parameters>\n},    ##
       qq{ <resources>\n};
 
     for my $name ( sort keys %{ $config->{-derived} } ) {
         my @elem = @{ $config->{-derived}{$name}{element} };
         if (@elem) {
-            print +(
+            print FILE +(
                 qq{  <derived name="$name">\n},
                 ( map { qq{   <element>$_</element>\n} } @elem ),
                 qq{  </derived>\n},
@@ -947,47 +1013,70 @@ XML_TEXT
           or warn "(WW) '$resource' not defined\n"
           and next;
 
+        # hash some output values here:
+        my %output = (
+            name => $resource,
+            ( map { $_ => $entry->{$_} } qw( served type waiting ) )
+        );
+
         my ( $total, $limit, $extern, $intern ) =
           @{$entry}{qw( total limit extern intern )};
 
-        defined $limit and $limit < $total or undef $limit;
-
         my $managed = ( $total - $extern );
-        if ( defined $limit and $managed > $limit ) {
-            $managed = $limit;
+
+        if ( defined $limit and $limit < $total ) {
+            if ( $managed > $limit ) {
+                $managed = $limit;
+            }
         }
+        else {
+            undef $limit;
+        }
+
         my $free = $managed - $intern;
 
         $_ >= 0 or $_ = 0 for ( $free, $managed );    # should not be required
 
-        print qq{  <resource};
+        # transcribe directly from original data structure
+        if ( exists $config->{-resources}{$resource} ) {
+            my $rc = $config->{-resources}{$resource};
+
+            for (qw( served from note )) {
+                if ( exists $rc->{$_} ) {
+                    $output{$_} = $rc->{$_};
+                }
+            }
+        }
+
+        print FILE qq{  <resource};
         for (
-            [ name    => $resource ],
-            [ served  => $entry->{served} ],
+            [ name    => $output{name} ],
+            [ served  => $output{served} ],
+            [ from    => $output{from} ],
             [ total   => $total ],
             [ limit   => $limit ],
             [ extern  => $extern ],
             [ intern  => $intern ],
-            [ waiting => $entry->{waiting} ],
+            [ waiting => $output{waiting} ],
             [ free    => $free ],
-            [ type    => $entry->{type} ],
+            [ type    => $output{type} ],
+            [ note    => $output{note} ],
           )
         {
             my ( $k, $v ) = @$_;
             if ( $k =~ /(total|limit)/ ) {
                 ## unconditional output
-                print qq{ $k="$v"} if defined $v;
+                print FILE qq{ $k="$v"} if defined $v;
             }
             else {
-                print qq{ $k="$v"} if $v;
+                print FILE qq{ $k="$v"} if $v;
             }
         }
 
-        my $output;
-
+        my $output;    # track if anything was written
         my $users = $entry->{users} || {};
 
-        for (    ##
+        for (          ##
             [ extern  => $users->{extern} ],     ##
             [ intern  => $users->{intern} ],     ##
             [ waiting => $users->{waiting} ],    ##
@@ -1004,9 +1093,9 @@ XML_TEXT
                     my ( $name, $host ) = split /\@/, $tag;
 
                     if ( not $output++ ) {
-                        print qq{>\n};
+                        print FILE qq{>\n};
                     }
-                    print qq{   <user name="$name"}
+                    print FILE qq{   <user name="$name"}
                       . ( $host ? qq{ host="$host"} : '' )
                       . qq{ type="$label"}
                       . qq{>$count</user>\n};
@@ -1016,21 +1105,24 @@ XML_TEXT
 
         # finish contents or finish as an empty element
         if ($output) {
-            print qq{  </resource>\n};
+            print FILE qq{  </resource>\n};
         }
         else {
-            print qq{/>\n};
+            print FILE qq{/>\n};
         }
     }
 
     # footer
-    print                     ##
+    print FILE                ##
       qq{ </resources>\n},    ##
       qq{</qlicserver>\n};
-}
 
-select STDOUT;
-$| = 1;    # no output buffering
+    close FILE;               # explicitly close before rename
+    if ( $tmpFile ne $cacheFile ) {
+        chmod 0444      => $tmpFile;      # output cache is readonly
+        rename $tmpFile => $cacheFile;    # atomic
+    }
+}
 
 #
 # get the pid of a command
@@ -1045,7 +1137,7 @@ sub pidof {
 #
 sub kill_daemon {
     my $signal = shift || 9;
-    my @list = grep { $_ != $$ } pidof ($Script);
+    my @list = grep { $_ != $$ } pidof($Script);
     kill $signal => @list if @list;
 }
 
@@ -1068,14 +1160,13 @@ if ( $opt{w} ) {
 }
 
 # for rest of the options, we need an updated configuration
-update_config();
+updateConfig();
 
 # ---------------------------------------------------------------------------
 # '-c' / '-C'
 # configuration
 # ---------------------------------------------------------------------------
 if ( $opt{C} or $opt{c} ) {
-    my %complexes = map { $_ => 0 } keys %{ $config->{-managed} };
 
     #
     # show complexes (format as per 'qconf -sc');
@@ -1089,9 +1180,18 @@ if ( $opt{C} or $opt{c} ) {
 # name shortcut type relop requestable consumable default urgency
 # --------------------------------------------------------------------------
 PRINT
-        for my $name ( sort keys %complexes ) {
+        for my $name ( sort keys %{ $config->{-managed} } ) {
+            my $consumable =
+              $config->{-managed}{$name} =~ /job/i ? "JOB" : "YES";
             my $urgency = 0;
-            for my $href ( $config->{-resources}, $config->{-derived} ) {
+
+            # brute-force search for urgency
+            for my $href (
+                $config->{-resources},    #
+                $config->{-derived},      #
+                $config->{-intern},       #
+              )
+            {
                 if ( exists $href->{$name} ) {
                     if ( exists $href->{$name}{urgency} ) {
                         $urgency = $href->{$name}{urgency};
@@ -1099,18 +1199,24 @@ PRINT
                     last;
                 }
             }
-            print "$name\t$name\tINT\t<=\tYES\tYES\t0\t$urgency\n";
+            print "$name\t$name\tINT\t<=\tYES\t$consumable\t0\t$urgency\n";
         }
     }
 
     if ( $opt{C} ) {
-        print <<'PRINT';
-#
-# initialize managed resources with the following command
-# --------------------------------------------------------------------------
+        my $qconf = Qconf->query();
+        delete @{ $config->{-managed} }{ keys %$qconf };
+
+        if ( %{ $config->{-managed} } ) {
+            print <<'PRINT';
+# initialize remaining managed resources with the following command:
 PRINT
-        print "qconf -mattr exechost complex_values ",
-          hashrefToString( \%complexes ), " global\n";
+            print "    qconf -mattr exechost complex_values ",
+              hashrefToString( $config->{-managed} ), " global\n\n";
+        }
+        else {
+            print "# nothing to do\n";
+        }
     }
 
     exit 0;
@@ -1128,9 +1234,9 @@ if ( $opt{i} ) {
 <?xml version="1.0"?>
 <qlicserverConfig>
 <!-- NOTE:
-   | This is only a configuration fragment of served resources.
-   | It is missing internal resources, limits, urgency and derived resources.
-   | DO NOT use this file directly as your configuration file.
+   | This is a configuration fragment of served resources.
+   | It is missing limits, urgency and derived, internal and remapped resources.
+   | DO NOT USE THIS FILE DIRECTLY AS YOUR CONFIGURATION FILE.
    + -->
  <resources>
 XML_TEXT
@@ -1166,7 +1272,7 @@ XML_TEXT
 XML_TEXT
 
     if (@new) {
-    print << 'XML_TEXT';
+        print << 'XML_TEXT';
 
 <!--
     NEW SERVED FEATURES DISCOVERED
@@ -1187,35 +1293,84 @@ XML_TEXT
 # query the license server for the availability
 # ---------------------------------------------------------------------------
 if ( $opt{l} ) {
-    # comma -> space-delimited
-    my @list = map { s/,/ /g; split; } $opt{l};
 
-    # number of slots ('slots=' or 's=')
-    my ($slots) = map { /^(?:s|slots)=(\d+)$/ } @list;
-    $slots ||= 1;
+    # only check served/derived resources, to avoid extra qconf -se
+    # and since this check should be unnecessary for internal resources anyhow
+    delete @{ $config->{-managed} }{ keys %{ $config->{-intern} } };
 
-    # only check resources managed here
-    @list = map {
+    # comma -> space-delimited, extracting 'slots' along the way
+    my $slots;
+    my @list =
+      map {
         my ( $rc, $request ) = split /=+/;
         defined $request and $request =~ /^\d+\.?\d*$/ or $request ||= 1;
-        exists $config->{-managed}{$rc}
-          ? [ $rc => sprintf "%.0f", $request * $slots ]
-          : ();
-    } @list;
+
+        if ( exists $config->{-managed}{$rc} ) {
+            [ $rc => $request ];
+        }
+        else {
+            ## number of slots ('slots=' or 's=')
+            $slots = $request if $rc =~ /^(?:s|slots)$/;
+            ();
+        }
+      }
+      map { s{,}{ }g; split; } $opt{l};
 
     @list or exit 0;
 
-    my $licenses = munge_licenses( License->query() );
+    # qstat query
+    my $qstat = Sge->qstat(
+        undef,                 ## without file caching
+        $config->{-managed}    ## distinguish complex types
+    );
+
+    # get my own job identifier from the environment
+    # treat non-array job (task=undefined) as task=0
+    ( my $jobIdent = ( $ENV{JOB_ID} || 0 ) . '.' . ( $ENV{SGE_TASK_ID} || 0 ) )
+      =~ s/[a-z]+$/0/i;
+
+    # never count myself in the overal balance, otherwise we block our own way!
+    for ( values %$qstat ) {
+        delete $_->{$jobIdent};
+    }
+
+    # get the projected resource availability:
+    my $licenses = mungeLicenses(
+        License->query( $config->{-mapFrom} ),    ## license availability
+        $qstat,                                   ## qstat query
+        updateLimits()                            ## limits are interesting
+    );
 
     my $failed;
+    $slots ||= 1;                                 # safety
     for (@list) {
         my ( $rc, $request ) = @$_;
-        if ( exists $licenses->{$rc} ) {    # only check licenses
-            my ( $total, $extern, $intern ) =
-              @{ $licenses->{$rc} }{qw( total extern intern )};
+        if ( exists $licenses->{$rc} ) {          # safety
+            my ( $total, $limit, $extern, $intern ) =
+              @{ $licenses->{$rc} }{qw( total limit extern intern )};
 
-            my $free = $total - ( $extern + $intern );
-            unless ( $request <= $free ) {
+            my $managed = ( $total - $extern );
+
+            if ( defined $limit and $limit < $total ) {
+                if ( $managed > $limit ) {
+                    $managed = $limit;
+                }
+            }
+            else {
+                undef $limit;
+            }
+
+            my $free = $managed - $intern;
+
+            if ( $free < 0 ) {
+                $free = 0;
+            }
+
+            ## scale non-'job' consumables
+            $request *= $slots unless $config->{-managed}{$rc} =~ /job/i;
+            $request = sprintf "%.0f", $request;
+
+            if ( $request > $free ) {
                 $request = $free;
                 $failed++;
             }
@@ -1308,8 +1463,8 @@ if ($daemon) {    # daemonize
         return $daemon;
     };
 
-    my $pid  = fork;
-    exit if $pid;            # let parent exit
+    my $pid = fork;
+    exit if $pid;    # let parent exit
     defined $pid or die "Couldn't fork: $!";
 
     # a new process group for the child
@@ -1337,14 +1492,17 @@ if ($daemon) {
 # daemon   - loop until killed
 #
 do {
-    update_config();
+    updateConfig();
 
-    my $limits = update_limits();
-    my $served = License->query();
+    my $limits = updateLimits();
+    my $served = License->query( $config->{-mapFrom} );
     my $qconf  = Qconf->query();
 
-    # qstat query with optional cache to a file
-    my $qstat = Sge->qstat( resolveOutputFile("qstat") );
+    # qstat query and cache to a file
+    my $qstat = Sge->qstat(
+        resolveOutputFile("qstat"),    ## optional cache
+        $config->{-managed}            ## distinguish complex types
+    );
 
     # cache qhost query to a file
     Sge->qhost( resolveOutputFile("qhost") );
@@ -1371,7 +1529,7 @@ do {
         $served->{$_} ||= { total => 0 };
     }
 
-    my $licenses = munge_licenses( $served, $qstat, $limits );
+    my $licenses = mungeLicenses( $served, $qstat, $limits );
     my $change = Qconf->diff( $qconf, $licenses );
 
     # cache output to a file
@@ -1394,7 +1552,7 @@ exit 0;
 # the array reference version discards stderr
 
 package Shell;
-our ( $timeout );
+our ($timeout);
 
 BEGIN {
     $timeout = 10;
@@ -1422,8 +1580,7 @@ sub cmd {
 
             open OLDERR, ">&", \*STDERR and $redirect++;
             open STDERR, ">/dev/null";
-
-            if ( open PIPE, '-|', @command ) {        # open without shell
+            if ( open PIPE, '-|', @command ) {         # open without shell
                 @lines = <PIPE>;
             }
         }
@@ -1460,7 +1617,37 @@ sub cmd {
 # The env variable 'LM_LICENSE_FILE' contains a colon-delimited list
 # with "port@server:port@server".
 # The queries for the same server (but different ports) are grouped together
-
+# and run in a common thread.
+# eg,
+#    port1@server1:port1@server2:port2@server1
+# -> port1@server1:port2@server1 + port1@server2
+# running in two threads.
+#
+# NOTE: for grouping to work, the servers must be named consistently
+# eg,
+#    port1@server1.domain:port2@server1:port3@server1.ip.addr
+# -> port1@server1.domain + port2@server1 + port3@server1.ip.addr
+#
+# To suppress grouping by server, entries can be surrounded by brace brackets.
+# eg,
+#    port1@server1:port1@server2:{port2@server1}
+# -> port2@server1 + port1@server1 + port1@server2
+#
+# or,
+#    {port1@server1:port1@server2:port2@server1}
+# -> port1@server1:port1@server2:port2@server1
+#
+#
+# This behaviour can be useful when license server triads are in use.
+# When a triad is in place, the single query to all three servers returns the
+# correct information, whereas three separate queries would incorrectly return
+# a triple count!
+# eg,
+#    port1@server1:{port@triad1:port@triad2:port@triad3}
+# -> port@triad1:port@triad2:port@triad3 + port1@server1
+#
+# As a side-effect, entries enclosed in brace brackets will be queried first.
+#
 package Flexlm;
 our ( $env, $cmd, @args, @servers );
 
@@ -1478,11 +1665,16 @@ BEGIN {
             my %index;
             my $index = 0;
 
-            for ( map { s{[:;]+}{ }g; split } $value ) {
-                my $name = $_;
-                if ( $name =~ s/^\d*\@// ) {    ## port@server or @server
-                    $name =~ s/\..+$//;         ## unqualified name
+            # get grouped server queries
+            while ( $value =~ s/\{(.*?)\}// ) {
+                if ($1) {
+                    push @servers, $1;
+                    $index++;
                 }
+            }
+
+            for ( map { s{[:;]+}{ }g; split } $value ) {
+                ( my $name = $_ ) =~ s/^\d*\@//;    ## port@server or @server
                 if ( defined $index{$name} ) {
                     $servers[ $index{$name} ] .= ":$_";
                 }
@@ -1531,6 +1723,9 @@ sub setenv {
 # --------------------------------------------------------------------------
 # PARSE Flexlm output that looks like this
 #
+# License server status: port@server
+#     License file(s) on server: ...
+#
 # Users of PATRAN:  (Total of 7 licenses available)
 #
 #  "PATRAN" v2003.1130, vendor: MSC
@@ -1555,8 +1750,6 @@ sub setenv {
 #       "user@machine nlicense" => occurances,
 #    },
 # }
-#
-
 sub query_server {
     my ( $caller, $server ) = @_;
     my $license = {};
@@ -1568,9 +1761,18 @@ sub query_server {
     defined $lines[0] or return $license;
 
     # warn "parse <@lines>\n";
-    my $feature;
+    my ( $serverInfo, $feature );
+
     for (@lines) {
         defined or next;
+
+        ## We don't currently do anything with this information
+        ## capture server port/name
+        #        if (/^License \s+ server \s+ status: \s+ (\d+\@\S+?)\s*$/mgcx)
+        #         {
+        #            $serverInfo = lc $1;
+        #            next;
+        #        }
 
         ## capture error status
         ## e.g. Users of DesignWare-Regression:  (Error: 10 licenses, unsupported by licensed server)
@@ -1625,24 +1827,38 @@ sub query_server {
 #
 # spawn threads and merge results from multiple 'query_server' calls
 #
+# The optional remapping field can be used to rename features on a
+# server-by-server basis before returning the hash. This only works when
+# threading works correctly - ie, each query corresponds to exactly a
+# single server
+#
 sub query {
-    my $caller    = shift;
-    my $nothreads = shift;
+    my $caller  = shift;
+    my $mapFrom = shift || {};
+    my $license = {};
 
-    @servers or return {};
+    @servers or return $license;
 
-    if ( $nothreads or @servers <= 1 ) {
+    if ( @servers <= 1 and keys %$mapFrom ) {
         return $caller->query_server();
     }
 
     ## REMOVE REMAINDER FOR UNTHREADED PERL
 
-    my @threads;    # record the thread ids here
-
+    my @threads;    # record the server names / thread ids here
     for my $server (@servers) {
-        my $thr = threads->create( sub { $caller->query_server($server) } );
-        if ( defined $thr ) {
-            push @threads, $thr;
+        my $thread = threads->create( sub { $caller->query_server($server) } );
+        if ( defined $thread ) {
+            my ( $lookup, %server );
+
+            for ( map { s{[:;]+}{ }g; split } $server ) {
+                ( $lookup = $_ ) =~ s/^\d*\@//;    ## port@server or @server
+                $lookup = lc $lookup;
+                $server{$lookup}++;
+            }
+
+            keys %server == 1 or undef $lookup;
+            push @threads, [ $lookup, $thread ];
         }
         else {
             warn "could not start thread for server $server\n;";
@@ -1650,16 +1866,17 @@ sub query {
     }
 
     # collect data, waiting for all threads to finish
-    my @returned;
-    for my $thr (@threads) {
-        push @returned, $thr->join();
-    }
+    # each thread returns a hash-of-hashes
+    for (@threads) {
+        my ( $lookup, $thread ) = @$_;
+        my $remap = exists $mapFrom->{$lookup} ? $mapFrom->{$lookup} : {};
+        my ($hash) = $thread->join();
 
-    # merge results together - traverse a list of hash-of-hashes
-    my $license = {};
-    for my $hash (@returned) {
-        for my $feature ( keys %$hash ) {
-            my $subhash = $hash->{$feature};
+        for ( keys %$hash ) {
+            my $subhash = $hash->{$_};
+            ## allow server-specific remapping
+            my $feature = exists $remap->{$_} ? $remap->{$_} : $_;
+
             for my $k ( keys %$subhash ) {
                 my $v = $subhash->{$k};
                 $license->{$feature}{$k} += $v;
@@ -1673,19 +1890,19 @@ sub query {
 1;
 
 # --------------------------------------------------------------------------
-# a class for combining several types of license managers
-# assumes that the same license feature cannot be managed by more than
-# a single license manager
+# A class for combining several types of license managers.
+# Assumes that the same license feature cannot be managed by more than a
+# single license manager type
 
 package License;
 
 sub query {
-    my ($caller) = @_;
-    return +{ map { %{ $_->query() } } @License::Manager };
+    my $caller = shift;
+    return +{ map { %{ $_->query(@_) } } @License::Manager };
 }
 
 sub envnames {
-    my ($caller) = @_;
+    my $caller = shift;
     return map { $_->envname() } @License::Manager;
 }
 
@@ -1774,7 +1991,9 @@ sub utilbin {
 # </host>
 # </qhost>
 #
-# NB: xmlns=... should be probably be xmlns:xsd=...
+# fix xmlns=... with xmlns:xsd=...
+# issue:
+#   http://gridengine.sunsource.net/issues/show_bug.cgi?id=2515
 #
 sub qhost {
     my $caller    = shift;
@@ -1782,15 +2001,27 @@ sub qhost {
 
     # record qhost xml output to a file
     # NB: use 2-argument form to open for ">-" expansion!
-    $cacheFile or return;
+    defined $cacheFile and length $cacheFile or return;
     my $lines = Sge->bin( qhost => qw( -q -j -xml ) ) or return;
 
     # replace xmlns= with xmlns:xsd=
     $lines =~ s{\s+xmlns=}{ xmlns:xsd=}s;
 
+    ## use temp file with rename to avoid race conditions
+    ## catch "-" STDOUT alias, and use 2-argument open for ">-" as well
+    my $tmpFile = $cacheFile;
+    if ( $cacheFile ne "-" ) {
+        $tmpFile .= ".TMP";
+        unlink $tmpFile;
+    }
     local *FILE;
-    if ( open FILE, ">$cacheFile" ) {
+    if ( open FILE, ">$tmpFile" ) {
         print FILE $lines;
+        close FILE;    # explicitly close before rename
+        if ( $tmpFile ne $cacheFile ) {
+            chmod 0444      => $tmpFile;      # output cache is readonly
+            rename $tmpFile => $cacheFile;    # atomic
+        }
     }
 }
 
@@ -1834,18 +2065,30 @@ sub qhost {
 # }
 #
 sub qstat {
-    my $caller    = shift;
-    my $cacheFile = shift;
-    my $status    = {};
+    my $caller      = shift;
+    my $cacheFile   = shift;
+    my $managedType = shift || {};
+    my $status      = {};
 
     my $lines = Sge->bin( qstat => qw( -u * -xml -r -s prs) ) or return $status;
 
     # record qstat xml output to a file
-    # NB: use 2-argument form to open for ">-" expansion!
-    if ($cacheFile) {
+    if ( defined $cacheFile and length $cacheFile ) {
+        ## use temp file with rename to avoid race conditions
+        ## catch "-" STDOUT alias, and use 2-argument open for ">-" as well
+        my $tmpFile = $cacheFile;
+        if ( $cacheFile ne "-" ) {
+            $tmpFile .= ".TMP";
+            unlink $tmpFile;
+        }
         local *FILE;
-        if ( open FILE, ">$cacheFile" ) {
+        if ( open FILE, ">$tmpFile" ) {
             print FILE $lines;
+            close FILE;    # explicitly close before rename
+            if ( $tmpFile ne $cacheFile ) {
+                chmod 0444      => $tmpFile;      # output cache is readonly
+                rename $tmpFile => $cacheFile;    # atomic
+            }
         }
     }
 
@@ -1859,17 +2102,21 @@ sub qstat {
     );
 
     for ( grep { $_ } split m{</job_list>}, $lines ) {
-        my ($state) = /$re{state}/;
-        my ($slots) = /$re{slots}/ or last;
-        my ($user)  = /$re{user}/ or last;
-        my ($job)   = /$re{job}/ or last;
-        my ($host)  = /$re{host}/;
+        my ($state)    = /$re{state}/;
+        my ($slots)    = /$re{slots}/ or last;
+        my ($user)     = /$re{user}/ or last;
+        my ($jobIdent) = /$re{job}/ or last;
+        my ($host)     = /$re{host}/;
+        my ($tasks)    = /$re{tasks}/;
 
-        ( $state ||= '' );
+        $tasks ||= 0;
+        $jobIdent .= ".$tasks";
 
-        if ( $state =~ /[qw]/ ) {
-            if ( my ($tasks) = /$re{tasks}/ ) {
-                my ( $min, $max, $step, $ntasks );
+        ## waiting jobs/tasks
+        if ( $state and $state =~ /[qw]/ ) {
+            my $ntasks;
+            if ($tasks) {
+                my ( $min, $max, $step );
 
                 # parse n[-m[:s]] and n,m
                 # these should be the only possibilities
@@ -1883,28 +2130,40 @@ sub qstat {
                         $ntasks++;
                     }
                 }
-
-                $slots *= $ntasks if $ntasks;
             }
+            $ntasks ||= 1;
 
             while (
                 s{<(\S*hard_request).*?\s+name=\"(\S+)\".*?>(\d[\.\d]*)</\1>}{})
             {
-                my $name = $2;
-                my $count = sprintf "%.0f", ( $3 * $slots );
+                my ( $name, $request ) = ( $2, $3 );
+
+                ## scale non-'job' consumables
+                $request *= $slots
+                  unless exists $managedType->{$name}
+                  and $managedType->{$name} =~ /job/i;
+
+                my $count = sprintf "%.0f", ( $request * $ntasks );
                 $status->{$name}{waiting}{$user} += $count;
             }
         }
         else {
             $host or next;    # safety
             $host =~ s{\..*$}{};    # strip domain - unqualified host name
-            my $identifier = "\L$user\@$host";
+            my $consumer = "\L$user\@$host";
+
             while (
                 s{<(\S*hard_request).*?\s+name=\"(\S+)\".*?>(\d[\.\d]*)</\1>}{})
             {
-                my $name = $2;
-                my $count = sprintf "%.0f", ( $3 * $slots );
-                $status->{$name}{$job}{"$identifier $count"}++;
+                my ( $name, $request ) = ( $2, $3 );
+
+                ## scale non-'job' consumables
+                $request *= $slots
+                  unless exists $managedType->{$name}
+                  and $managedType->{$name} =~ /job/i;
+
+                my $count = sprintf "%.0f", $request;
+                $status->{$name}{$jobIdent}{"$consumer $count"}++;
             }
         }
     }
@@ -1918,7 +2177,7 @@ sub qstat {
 package Qconf;
 
 BEGIN {
-    $ENV{SGE_SINGLE_LINE} = 1; # do not break up long lines with backslashes
+    $ENV{SGE_SINGLE_LINE} = 1;    # do not break up long lines with backslashes
 }
 
 # extract 'administrator_mail'
@@ -1972,7 +2231,7 @@ sub mattr {
 #    feature => total,
 # }
 #
-# HASHREF2 => {         # from 'munge_licenses'
+# HASHREF2 => {         # from 'mungeLicenses'
 #     feature => {
 #        type => STRING or undef,
 #        total => INT,

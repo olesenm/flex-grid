@@ -20,31 +20,42 @@
    | Resources that are not served and not derived are internal resources
    + -->
  <resources>
-  <resource name="foam"/>
-  <resource name="gtpower" served="GTpowerX" limit="4"/>
-  <resource name="abaqus" served="abaqus"/>
-  <resource name="nastran" served="NASTRAN" limit="3"/>
-  <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
-  <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
-  <resource name="starjob" served="starpar" note="STAR-CD parallel starter"/>
+  <!-- cfd applications -->
+   <resource name="foam"/>
+   <resource name="starjob" served="starpar" urgency="100" note="STAR-CD parallel starter"/>
+   <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
+   <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
+   <derived name="starcd" urgency="100">
+    <element>starp</element>
+    <element>stars</element>
+   </derived>
+
+  <!-- fea applications -->
+   <resource name="abaqus" served="abaqus"/>
+   <resource name="hyper" served="GridWorks" limit="-4200"/>
+   <resource name="nastran1" served="NASTRAN" from="auglic1" note="leased"/>
+   <resource name="nastran2" served="NASTRAN" from="auglic2" note="purchased"/>
+   <derived name="nastran">
+    <element>nastran1</element>
+    <element>nastran2</element>
+   </derived>
 <!--
    The daemon seems to be unreliable, don't bother querying for this feature.
-   Manage like an internal resource and the user worry about possible
+   Manage like an internal resource and let the user worry about possible
    external license use themselves.
    <resource name="thomat" served="JT" note="abaqus high temperature modelling"/>
 -->
-  <resource name="thomat" note="abaqus high temperature modelling"/>
-  <resource name="hexa" served="aihexa" type="track"/>
-  <resource name="ansys" served="ansys" type="track"/>
-  <resource name="gtise" served="GTise" type="track"/>
-  <resource name="hyper" served="HyperWorks" type="track"/>
-  <resource name="med" served="aimed" type="track"/>
-  <resource name="proam" served="proam" type="track"/>
-  <resource name="prostar" served="prostar" type="track"/>
-  <resource name="tetra" served="aitetra" type="track"/>
-  <derived name="starcd" urgency="100">
-   <element>starp</element>
-   <element>stars</element>
-  </derived>
+   <resource name="thomat" note="abaqus high temperature modelling"/>
+
+  <!-- other applications -->
+   <resource name="gtpower" served="GTpowerX" limit="4"/>
+
+  <!-- tracked applications -->
+   <resource name="gtise" served="GTise" type="track"/>
+   <resource name="hexa" served="aihexa" type="track"/>
+   <resource name="med" served="aimed" type="track"/>
+   <resource name="proam" served="proam" type="track"/>
+   <resource name="prostar" served="prostar" type="track"/>
+
  </resources>
 </qlicserverConfig>

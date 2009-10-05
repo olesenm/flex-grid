@@ -8,24 +8,14 @@ use POSIX qw( );
 my $time = time;
 my $date = POSIX::strftime( "%F %T", localtime $time );
 
-my ($siteLocation) = do {
-    ## admin_user (see SGE_ROOT/SGE_CELL/common/bootstrap)
-    my $admin = "cfdadmin";
-    my $root  = "n1ge6";      # sge_root
+$ENV{SGE_ROOT} or die "Error $Script: \$SGE_ROOT is not set\n";
+$ENV{SGE_CELL} ||= "default";    # sge_cell
 
-    $ENV{SGE_ROOT} ||= "/opt/$root";    # sge_root
-    $ENV{SGE_CELL} ||= "default";       # sge_cell
-
-    my ($home) = ( getpwnam($admin) )[7] || "";
-
-    grep { -d } map { join "/" => @$_, "site" } (
-        [ $ENV{SGE_ROOT}, $ENV{SGE_CELL} ],    # standard location
-        [ $home, $root, $ENV{SGE_CELL} ],      # extra safety
-    );
-};
+my ($siteLocation) = join "/" => ( $ENV{SGE_ROOT}, $ENV{SGE_CELL}, "site" );
 
 my $config = {
-    -cache  => ( $siteLocation || '' ) . "/" . "qlicserver.cache",
+    -site   => ( $siteLocation || '' ),
+    -cache  => ( $siteLocation || '' ) . "/cache/" . "qlicserver.xml",
     -limits => ( $siteLocation || '' ) . "/" . "qlicserver.limits",
 };
 
@@ -70,8 +60,18 @@ sub parseXMLattrib {
 
 package LCache;
 
-sub _xmlParse {
-    my $self = shift;
+sub new {
+    my $caller = shift;
+    my $file   = shift;
+
+    my $self = bless {
+        ( map { $_ => {} } qw( -rc ) ),
+        ( map { $_ => '' } qw( -date -host -age ) )
+    }, $caller;
+
+    -f $file or return $self;
+
+    local $_ = do { local ( @ARGV, $/ ) = $file; <>; };
 
     # strip out all comments
     s{<!--.*?-->\s*}{}sg;
@@ -137,77 +137,6 @@ sub _xmlParse {
                 }
             }
         }
-    }
-}
-
-sub _legacyParse {
-    my $self = shift;
-
-    my @tags    = qw( total limit global extern intern waiting );
-    my $re_tags = join( "|" => @tags );
-
-    for ( split /\n+/ ) {
-        my ( $user, $tag, $mach, $license, $count, $full );
-
-        if (m{<(host)>\s*(.+?)\s*</\1>}) {
-            my ( $k, $v ) = ( $1, $2 );
-            $self->{"-$k"} = $v;
-        }
-        elsif (m{<(time) \s+ .*? epoch=\"(\d+)\"\s*>\s*(.+?)\s*</\1>}x) {
-            $self->{-age} = main::age( $time, $2 );
-            $self->{-date} = $3;
-        }
-        elsif ( ( $tag, $license, $count ) =
-            m{^(\S+?) [:=]+ (\S+?) [:=]+ (\d+?) \s*$}x )
-        {
-            $self->{-rc}{$license} ||= {
-                -where => {},
-                map { $_ => 0 } ( qw( type ), @tags ),
-            };
-
-            if ( $tag =~ m{^($re_tags)$} ) {
-                $self->{-rc}{$license}{$tag} = $count;
-                my $type;
-                if (/==/) {
-                    $type = "intern";
-                }
-                elsif ( not /:/ ) {
-                    $type = "track";
-                }
-                $self->{-rc}{$license}{type} = $type;
-
-            }
-            elsif ( $tag =~ m{[*@]} ) {    ## 'user@host' or 'user'
-                $self->{-rc}{$license}{-where}{$tag} = $count;
-            }
-        }
-    }
-
-    for ( values %{ $self->{-rc} } ) {
-        $_->{free} = delete $_->{global} if exists $_->{global};
-    }
-}
-
-sub new {
-    my $caller = shift;
-    my $file   = shift;
-
-    my $self = bless {
-        ( map { $_ => {} } qw( -rc ) ),
-        ( map { $_ => '' } qw( -date -host -age ) )
-    }, $caller;
-
-    local $_ = do {
-        local @ARGV = $file;
-        local $/;
-        <>;
-    };
-
-    if (m{^\s*<\?xml}) {
-        $self->_xmlParse();
-    }
-    else {
-        $self->_legacyParse();
     }
 
     return $self;
@@ -358,15 +287,6 @@ sub output {
 package main;
 import LCache;
 
-our ( $VERSION, $DATE ) = do {
-    my ( $ver, $date ) =
-      q{$Id: qlic,v 1.20 2008/01/04 08:37:03 cfdadmin Exp $} =~
-      m{\s+(\d+\.\d+).*?\s+(\d{4}[-/]\d{2}[-/]\d{2})};
-    $date =~ s{/}{-}g;    # ISO-formatted
-
-    ( $ver, $date );
-};
-
 # ------------------------------------------------------------------------
 sub usage {
     $! = 0;               # clean exit
@@ -380,7 +300,7 @@ with options:
   -a       combined with '-u' = include active jobs
   -c FILE  alternative location for the license cache
   -C FILE  alternative location for the license limit
-  -d       dump license cache in raw  format
+  -d       dump cache file as raw xml
   -D       dump license cache in perl format
   -f       display free licenses only
   -l       list license limit
@@ -396,8 +316,7 @@ with options:
 * adjust / display information for the license limits
   $config->{-limits}
 
-version $VERSION ($DATE)
-copyright (c) 2003-07 <Mark.Olesen\@emconTechnologies.com>
+copyright (c) 2003-09 <Mark.Olesen\@emconTechnologies.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 2.5 License.
@@ -426,8 +345,32 @@ if ( $opt{u} ) {
 }
 
 if ( $opt{d} ) {
-    local @ARGV = $opt{c} || $config->{-cache};
-    print while <>;
+    local $_;
+    my $file = $opt{c} || $config->{-cache};
+
+    if ( not -f $file and $file !~ m{/} ) {
+        $file = "$config->{-site}/$file";
+    }
+
+    -f $file or exit 1;
+
+    $_ = do { local ( @ARGV, $/ ) = $file; <>; };
+
+    # do a basic check for well-formed xml
+    # this might not be the case if there is a race condition
+    # and the file has not been fully written
+
+    # check for '<?xml version="1.0"?><someTag ...' at the start
+    # and '</someTag>' at the end
+    my ($tag) = m{^<\?xml [^<>]*\?>\s*\<(\w+)}sx;
+    unless ( $tag and m{</\Q$tag\E>\s*$} ) {
+        sleep 2;    ## wait and try again
+        $_ = do { local ( @ARGV, $/ ) = $file; <>; };
+    }
+
+    $_ ||= '';      ## avoid uninitialized
+
+    print;
     exit;
 }
 
@@ -475,7 +418,7 @@ my @list;
 
 format =
 # name      total limit extern intern wait free
-@<<<<<<<<<<< @>>>>> @>>>> @>>>>> @>>>>> @>>> @>>>
+@<<<<<<<<<<< @>>>>> @>>>>> @>>>>> @>>>>> @>>>> @>>>>
 @list
 .
 
@@ -514,7 +457,8 @@ for my $resource ( sort keys %resources ) {
     }
     else {
         @list =
-          ( $resource, @{$count}{qw( total limit extern intern waiting free )} );
+          ( $resource,
+            @{$count}{qw( total limit extern intern waiting free )} );
 
         my $type = $resources{$resource}{type} || 0;
 
@@ -529,7 +473,9 @@ for my $resource ( sort keys %resources ) {
         }
 
         # easy to read representation for zero
-        $_ ||= '.' for @list;
+        for (@list) {
+            defined $_ or $_ = '.';
+        }
 
         write;
     }

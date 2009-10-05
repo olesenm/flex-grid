@@ -1,5 +1,6 @@
 #!/bin/sh
 #
+# qloadsensor:
 # load sensor for particular file systems and floating licenses
 #
 # NB:
@@ -11,12 +12,11 @@
 #    2) initialize the global complex consumables to be managed
 #           eg, 'qlicserver -C'
 #
-# $Id: qloadsensor,v 1.13 2007/12/14 11:39:19 cfdadmin Exp $
-# copyright (c) 2003-07 <Mark.Olesen@emconTechnologies.com>
+# copyright (c) 2003-09 <Mark.Olesen@emconTechnologies.com>
 #
 # Licensed and distributed under the Creative Commons
-# Attribution-NonCommercial-ShareAlike 2.5 License.
-# http://creativecommons.org/licenses/by-nc-sa/2.5
+# Attribution-NonCommercial-ShareAlike 3.0 License.
+# http://creativecommons.org/licenses/by-nc-sa/3.0
 # -----------------------------------------------------------------------------
 
 #
@@ -26,7 +26,7 @@
 # from sge_execd, which in turn is started from /etc/init.d/n1ge and
 # these variables should be correctly exported there
 #
-: ${SGE_ROOT:=/opt/n1ge6}
+[ -d "$SGE_ROOT" ] || { echo "Error: SGE_ROOT=$SGE_ROOT not found"; exit 1; }
 : ${SGE_CELL:=default}
 : ${SGE_ARCH:=`$SGE_ROOT/util/arch`}
 
@@ -37,21 +37,30 @@ export SGE_ROOT SGE_CELL SGE_ARCH
 #
 if [ "$UID" -eq 0 ]
 then
-   admin_user=$(sed -ne 's/^admin_user *//p' $SGE_ROOT/$SGE_CELL/common/bootstrap)
-   : ${admin_user:=root}
-   if [ $admin_user != root -a $(echo $admin_user | tr "A-Z" "a-z") != none ]
-   then
-      exec $SGE_ROOT/utilbin/$SGE_ARCH/adminrun $admin_user $0
-   fi
+    admin_user=$(sed -ne 's/^admin_user *//p' $SGE_ROOT/$SGE_CELL/common/bootstrap)
+    : ${admin_user:=root}
+    if [ $admin_user != root -a $(echo $admin_user | tr "A-Z" "a-z") != none ]
+    then
+        exec $SGE_ROOT/utilbin/$SGE_ARCH/adminrun $admin_user $0
+    fi
 fi
 
 # <settings>
 # ========================================================================
 # now that we are the admin_user, we can source our standard settings
 #   - customize *all* settings there (eg, license server settings)
-#
 #   - ENSURE THAT '$SGE_site' IS DEFINED !!!
+#
 for i in $SGE_ROOT/$SGE_CELL/site/environ; do [ -f $i ] && . $i; done
+
+# define (unique) cluster name if not already defined
+if [ -z "$SGE_CLUSTER_NAME" -a -r "$SGE_ROOT/$SGE_CELL/common/cluster_name" ]
+then
+    SGE_CLUSTER_NAME=$(cat $SGE_ROOT/$SGE_CELL/common/cluster_name 2>/dev/null)
+fi
+: ${SGE_CLUSTER_NAME:=default}
+export SGE_CLUSTER_NAME
+
 #
 # ========================================================================
 # </settings>
@@ -60,7 +69,8 @@ for i in $SGE_ROOT/$SGE_CELL/site/environ; do [ -f $i ] && . $i; done
 ###############################################################################
 # CUSTOMIZE THESE SETTINGS - iff. required
 
-qlicserver="$SGE_site/qlicserver dir=$SGE_site output=qlicserver.cache qhost=qhost.cache qstat=qstat.cache"
+qlicserver="$SGE_site/qlicserver dir=$SGE_site/cache output=qlicserver.xml qhost=qhost.xml qstat=qstat.xml"
+diskmon="$SGE_site/diskmon.pl"
 
 # END OF CUSTOMIZE SETTINGS
 ###############################################################################
@@ -86,8 +96,8 @@ os_arch=`$SGE_ROOT/util/arch`
 #
 act_qmaster()
 {
-   tmp=$(cat $SGE_common/act_qmaster 2>/dev/null)
-   echo ${tmp:-unknown}
+    tmp=$(cat $SGE_common/act_qmaster 2>/dev/null)
+    echo ${tmp:-unknown}
 }
 
 # -----------------------------------------------------------------------------
@@ -102,32 +112,38 @@ act_qmaster()
 # return 0 if 'df' fails
 df_info()
 {
-   # 1:tag 2:mount 3:filesys 4:total 5:Used 6:Avail 7:Used% 8:Mount
-   [ -d "$2" ]    && set -- $1 $2 $( df -k $2 2>/dev/null | tail -1 )
+    # 1:tag 2:mount 3:filesys 4:total 5:Used 6:Avail 7:Used% 8:Mount
+    [ -d "$2" ]    && set -- $1 $2 $( df -k $2 2>/dev/null | tail -1 )
 
-   #!# we could add the following check:
-   #!# [ "$2" != "$8" ] && set -- $1 $2;	# mount point mismatch?
+    #!# we could add the following check:
+    #!# [ "$2" != "$8" ] && set -- $1 $2;        # mount point mismatch?
 
-   [ "$#" -ge 6 ] || set -- $1 $2 filesystem 0 0 0
+    [ "$#" -ge 6 ] || set -- $1 $2 filesystem 0 0 0
 
-   echo "$UQHOST:$1_total:$4K"
-   echo "$UQHOST:$1_used:$5K"
-   echo "$UQHOST:$1_free:$6K"
+    echo "$UQHOST:$1_total:$4K"
+    echo "$UQHOST:$1_used:$5K"
+
+    if [ -w "$2" ]
+    then
+        echo "$UQHOST:$1_free:$6K"
+    else
+        echo "$UQHOST:$1_free:0"
+    fi
 }
 
 # invariant values
 if [ -e "/proc/cpuinfo" ]
 then
-   mips=$(awk '{if (/mips/) printf "%.0f\n", $NF}' /proc/cpuinfo | tail -1)
+    mips=$(awk '{if (/mips/) printf "%.0f\n", $NF}' /proc/cpuinfo | tail -1)
 else
-   mips=0
+    mips=0
 fi
 
 unset os_name
 # extract VERSION = 10.2 => suse10.2
 if [ -e "/etc/SuSE-release" ]
 then
-   os_name=$(sed -ne 's/^VERSION *= */suse/p' /etc/SuSE-release 2>/dev/null)
+    os_name=$(sed -ne 's/^VERSION *= */suse/p' /etc/SuSE-release 2>/dev/null)
 fi
 : ${os_name:=NONE}
 
@@ -139,10 +155,10 @@ fi
 #
 host_info()
 {
-   echo "$UQHOST:arch:$os_arch"
-   echo "$UQHOST:os:$os_name"
-   df_info	tmp	/tmp
-   echo "$UQHOST:mips:$mips"
+    echo "$UQHOST:arch:$os_arch"
+    echo "$UQHOST:os:$os_name"
+    df_info      tmp     /tmp
+    echo "$UQHOST:mips:$mips"
 }
 
 # -----------------------------------------------------------------------------
@@ -209,7 +225,7 @@ iidle_info()
 
         $int += $_
           for
-	  map { /\s+(keyboard|Mouse|serial)$/ ? (split)[ 1 .. $ncpu ] : (); }
+          map { /\s+(keyboard|Mouse|serial)$/ ? (split)[ 1 .. $ncpu ] : (); }
           <>;
 
         if ( $int == $last[-1] ) {    # no interactivity since last round
@@ -225,7 +241,7 @@ iidle_info()
 
     echo "$UQHOST:iidle:$1";
 
-    shift; last="$@";	# save for later
+    shift; last="$@";   # save for later
 }
 # -----------------------------------------------------------------------------
 #
@@ -236,27 +252,30 @@ iidle_info()
 
 while :
 do
-   read input || exit 1		# wait for input
-   [ "$input" = quit ] && exit 0
+    read input || exit 1         # wait for input
+    [ "$input" = quit ] && exit 0
 
-   echo begin			# begin load report
-   host_info			# host information
-   iidle_info			# machine's idle time
-   echo end			# end load report
+    echo begin                   # begin load report
+    host_info                    # host information
+    iidle_info                   # machine's idle time
+    echo end                     # end load report
 
-   # let the license query run between load reports
-   SGE_qmaster=`act_qmaster`	# refresh the name of the qmaster
-   if [ "$HOST" = "$SGE_qmaster" ]
-   then
-      $qlicserver 2>> qloadsensor.err
-      # force rescheduling of express jobs
-      $SGE_site/qxprs >/dev/null 2>&1
-   fi
+    # let the license query run between load reports
+    SGE_qmaster=`act_qmaster`    # refresh the name of the qmaster
+    if [ "$HOST" = "$SGE_qmaster" ]
+    then
+        $qlicserver 2>> qloadsensor.err
+##        $diskmon -m 2>> qloadsensor.err
+        # force rescheduling of express jobs
+        ## $SGE_site/qxprs >/dev/null 2>&1
+##    else
+##        $diskmon 2>> qloadsensor.err
+    fi
 done
-exit 0			# we never get here, but just in case
+exit 0    # we never get here, but just in case
 
 #------------------------------------------------------------------------------
-# feed through 'perl -x' to extract the 'host' complex configuration
+# feed via 'perl -x' to extract the 'host' complex configuration
 
 #!/usr/bin/perl -w
 print <DATA>
