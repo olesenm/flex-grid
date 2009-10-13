@@ -72,24 +72,49 @@
 
 
 <!-- RELEASE -->
+<h3>Release 2009-10-12</h3>
+<h4>improved handling of timeouts</h4>
+<ul>
+<li>
+  a command timeout will now also kill off the truant child process. This
+  seems to work well in non-threaded mode, but still triggers an Alarm bug
+  in threaded mode.
+</li>
+</ul>
+
+<h4>Inject processing instructions in the xml output</h4>
+Eg, Inject <tt>&lt;?qstat date=&quot;2009-10-13T09:20:54&quot;&gt;</tt> and
+<tt>&lt;?qstat args=&quot;-u * -xml -r -s prs&quot;&gt;</tt>
+processing instructions in the xml output.
+<ul>
+<li>
+  This allows tracking of the creation time without affecting the xml
+  content and without relying on the file system.
+</li>
+<li>
+  It is also easily accessible in xslt.
+</li>
+</ul>
+
+<!-- RELEASE -->
 <h3>Release 2009-10-02</h3>
 <h4>bugfix for triads</h4>
-<pre>
-* Fixed problem with uninitialized lookup name when using server triads.
-* Fixed accidentally changing server string in parser.
-</pre>
+<ul>
+<li>Fixed problem with uninitialized lookup name when using server triads.</li>
+<li>Fixed accidentally changing server string in parser.</li>
+</ul>
 
 <h4>misc cleanup</h4>
-<pre>
-* suppress dir prefix for cache files starting with "./"
-* don't load Data::Dumper or File::Basename
-* add type="overwrite" in example config file
-</pre>
+<ul>
+<li>suppress dir prefix for cache files starting with "./"</li>
+<li>don't load Data::Dumper or File::Basename</li>
+<li>add type="overwrite" in example config file</li>
+</ul>
 
 <h4>supplementary script(s)</h4>
-<pre>
-* filter-accounting
-</pre>
+<ul>
+<li>filter-accounting</li>
+</ul>
 
 
 <!-- RELEASE -->
