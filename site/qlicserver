@@ -9,7 +9,7 @@ import License;
 import GridEngine;
 import Qconf;
 
-my ($releaseDate) = qw( 2009-10-02 );
+my ($releaseDate) = qw( 2009-10-12 );
 my ( $Path, $Script ) = map { m{^(.+)/([^/]+)$} } $0;    # instead of fileparse
 
 ################################################################################
@@ -945,6 +945,7 @@ sub qlic_output {
     # header with comment about possible changes
     print FILE << "XML_TEXT";
 <?xml version="1.0"?>
+<?qlicserver date="$date"?>
 <qlicserver releaseDate="$releaseDate">
 <!-- adjustment:
      qconf -mattr exechost complex_values $mattr global
@@ -1544,14 +1545,23 @@ do {
 exit 0;
 
 # ------------------------------------------------------------------ end-of-main
-# the qx// command with a simple timeout wrapper
-# the array reference version discards stderr
+# somewhat like the qx// command with a timeout mechanism,
+# but for safety it only handles a list form (no shell escapes)
+#
 
 package Shell;
-our ($timeout);
+our ( $timeout, $report );
 
 BEGIN {
     $timeout = 10;
+}
+
+#
+# assign new value for reporting the timeout
+#
+sub report {
+    my ( $caller, $value ) = @_;
+    $report = $value;
 }
 
 #
@@ -1564,37 +1574,38 @@ sub timeout {
 
 sub cmd {
     my ( $caller, @command ) = @_;
-    my ( $redirect, @lines );
-    local *OLDERR;
+    my ( @lines, $pid, $redirected );
+    local ( *OLDERR, *PIPE );
+
+    # kill off truant child: this works well for unthreaded processes,
+    # but threaded processes are still an issue
+    local $SIG{__DIE__} = sub { kill TERM => $pid if $pid; };
 
     eval {
-        local $SIG{ALRM} = sub { die "TIMEOUT\n" };    # NB: '\n' required
+        local $SIG{ALRM} = sub { die "TIMEOUT\n" };         # NB: '\n' required
         alarm $timeout if $timeout;
         @command or die "$caller: Shell->cmd with an undefined query\n";
-        if ( @command > 1 ) {
-            local *PIPE;
 
-            open OLDERR, ">&", \*STDERR and $redirect++;
+        if ( open OLDERR, ">&", \*STDERR ) {
+            $redirected++;
             open STDERR, ">/dev/null";
-            if ( open PIPE, '-|', @command ) {         # open without shell
-                @lines = <PIPE>;
-            }
         }
-        else {
-            @lines = qx{$command[0] 2>&1};
+
+        $pid = open PIPE, '-|', @command;    # open without shell (forked)
+        if ($pid) {
+            @lines = <PIPE>;
         }
+
         die "(EE) ", @lines if $?;
         alarm 0;
     };
 
     # restore stderr
-    if ($redirect) {
-        open STDERR, ">&OLDERR";
-    }
+    open STDERR, ">&OLDERR" if $redirected;
 
     if ($@) {
-        if ( $@ eq "TIMEOUT\n" ) {
-            warn "(WW) TIMEOUT after $timeout seconds on '@command'\n";
+        if ( $@ =~ /^TIMEOUT/ ) {
+            warn "(WW) TIMEOUT after $timeout seconds on '@command'\n" if $report;
             return undef;
         }
         else {
@@ -2030,10 +2041,19 @@ sub qhost {
 
     # record qhost xml output to a file
     defined $cacheFile and length $cacheFile or return;
-    my $lines = GridEngine->bin( qhost => qw( -q -j -xml ) ) or return;
+
+    my @args = qw( -q -j -xml );
+    my $lines = GridEngine->bin( qhost => @args ) or return;
 
     # replace xmlns= with xmlns:xsd=
+    # only needed for older GridEngine versions
     $lines =~ s{\s+xmlns=}{ xmlns:xsd=}s;
+
+    # document the request without affecting the xml structure:
+    # inject the query date and arguments as processing instructions
+    # newer perl can use \K for a variable-length look behind
+    my $date = POSIX::strftime( "%FT%T", localtime );
+    $lines =~ s{^(<\?xml[^\?]+\?>)}{$1\n<?qhost date="$date"?>\n<?qhost command="@args"?>};
 
     GridEngine->writeCache( $cacheFile, $lines );
 }
@@ -2083,11 +2103,22 @@ sub qstat {
     my $managedType = shift || {};
     my $status      = {};
 
-    my $lines = GridEngine->bin( qstat => qw( -u * -xml -r -s prs) )
+    my @args = qw( -u * -xml -r -s prs );
+
+    my $lines = GridEngine->bin( qstat => @args )
       or return $status;
 
     # optionally record qstat xml output to a file
-    GridEngine->writeCache( $cacheFile, $lines );
+    if ($cacheFile)
+    {
+        # document the request without affecting the xml structure:
+        # inject the query date and arguments as processing instructions
+        # newer perl can use \K for a variable-length look behind
+        my $date = POSIX::strftime( "%FT%T", localtime );
+        $lines =~ s{^(<\?xml[^\?]+\?>)}{$1\n<?qstat date="$date"?>\n<?qstat args="@args"?>};
+
+        GridEngine->writeCache( $cacheFile, $lines );
+    }
 
     my %re = (
         state => qr{<state>([A-Za-z]+)</state>},
