@@ -95,7 +95,7 @@
   #col2_content { padding: 10px 20px 10px 10px; }
 
   #col3 { margin: 0 25%; }
-  #col3_content { padding: 10px; border-left: 1px #ddd solid; }
+  #col3_content { padding: 10px; }
 
   .c50r { border-left: 1px #ddd solid; }
 
@@ -132,8 +132,6 @@
   #topnav a:active {
     text-decoration:underline; background-color: transparent;
   }
-
-  #col3_content { background: #fff url(images/grayGradient.png) repeat-x top left fixed; padding: 10px 0; }
 
   #footer a { color: #999; background:transparent; font-weight: bold;}
   #footer a:focus,
