@@ -1,0 +1,178 @@
+---
+layout:  default
+navname: Changes
+sidenav:
+  - head: Changes
+---
+
+<b><em>
+  For more details, consult the git history.
+  For releases prior to 2009, the CVS version number is given in brackets.
+</em></b>
+
+
+---------------
+### Release 2009-10-12
+
+#### improved handling of timeouts
+
+- a command timeout will now also kill off the truant child process. This
+  seems to work well in non-threaded mode, but still triggers an Alarm bug
+  in threaded mode.
+
+#### Inject processing instructions in the xml output
+
+Eg, Inject `<?qstat date="2009-10-13T09:20:54"?>` and
+`<?qstat args="-u * -xml -r -s prs"?>` processing instructions
+in the xml output.
+
+- This allows tracking of the creation time without affecting the xml
+  content and without relying on the file system.
+- It is also easily accessible in xslt.
+
+
+---------------
+### Release 2009-10-02
+
+#### bugfix for triads
+- Fixed problem with uninitialized lookup name when using server triads.
+- Fixed accidentally changing server string in parser.
+
+#### misc cleanup
+- suppress dir prefix for cache files starting with "./"
+- don't load `Data::Dumper` or `File::Basename`
+- add *type="overwrite"* in example config file
+
+#### supplementary script(s)
+- filter-accounting
+
+
+---------------
+### Release 2009-05-26
+
+#### fixed regression occurring with derived resources
+- derived resources were being summed too many times
+
+---------------
+### Release 2009-04-28
+
+#### fixed regression occurring with derived resources
+- missed one level of indirection when combining derived resources
+
+
+---------------
+### Release 2009-04-21
+
+#### GridEngine 'JOB' complex
+- Complexes with the type 'job' are not scaled by the number of slots.
+
+#### bugfix for derived resource
+- Derived resources should now correctly respect the limits imposes on
+  their subelements.
+
+#### initial support for license server triads
+- Elements in the LM_LICENSE_FILE surrounded by brace brackets are taken
+  literally and not threaded. This helps prevent querying a license triad
+  three times and getting the wrong answer. Using brace brackets to group
+  and identify triads is probably only meaningful within a config file and
+  should not be attempted on the LM_LICENSE_FILE environment variable
+  itself.
+
+#### license remapping
+- With the *from* attribute, it is possible to map FlexLM
+  licenses to different GridEngine resource names depending on the
+  license server. This can be used, for example, to distinguish between
+  identically named license features that have different qualities (eg,
+  an old purchase license vs. a new lease license).
+
+#### atomic write operation
+- Output files are written to a temporary file and unlink() is used to move
+  them to the correct location. This avoids race conditions when the file is
+  already being read by another process.
+
+
+---------------
+### Release 2008-02-29 (version 1.44)
+
+The command-line options and the configuration of the *qlicserver* have
+changed. The goal of the changes is to improve the ease of deployment and to
+increase the flexibility of the program in general. Editing the source code
+should no longer be required, but can be done if you either wish to operate
+without a configuration file, or would like to have some failsafe values
+hard-coded in. Although upgrading from a previous version should be
+straightforward, please do check if there is now a different way of doing
+things or if a particular option has been eliminated. The **-h** option
+usually provides a good starting point.
+
+#### XML configuration file
+- A configuration file can be used for most of the license configuration and
+  operation parameters -- *qlicserver.config*
+
+#### Resource limit files
+- Resource limits controllable from a file or a directory of files --
+  *qlicserver.limits*
+
+#### XML output format
+- With supplementary XSLT sheets it allows web-based monitoring of the
+  resources.
+
+#### Optional qhost/qstat output
+- These results of these queries can be used by processed by appropriate XSLT
+  sheets (eg, within **xmlqstat**) to monitor the status of jobs and hosts.
+
+#### Silent operation by default
+- The previous **-q** (quiet) option has been dropped in favour of
+  explicitly requesting output with the *output* parameter.
+
+#### Command-line parameters
+- Many program parameters can also be set in the configuration file or via
+  the command-line.
+
+#### More flexible daemon modes
+- It is now possible to operate like a true daemon (without a parent) or to
+  monitor a particular process or process id.
+
+---------------
+### Release 2007-05-07 (version 1.26)
+
+#### Adjust for new qstat behaviour
+- now need `qstat -u *` to list all jobs
+
+#### Added threaded server queries
+- Each server will be queried in parallel in a separate thread. If multiple
+  ports are used on a particular server, they will be bundled together
+  within a thread. The parallel query allows better response and stability
+  when a slow or wonky server is in the system. Instead of relying on the
+  FlexLM timeout parameter, 'alarm' is used to pull the plug on queries
+  that are taking too long.
+
+  NOTE: on some older systems (eg, perl 5.8.5 and SuSE 9.2) killing a
+  thread within Perl appears to kill all threads. On these systems, the
+  robustness will not be better (or worse) than before, but the query
+  speed will still be improved. If only a single server is being used, no
+  threads are used. If threads are a general problem on your system, the
+  comments containing "UNTHREADED PERL" should help find the editing
+  points in the code.
+
+#### output tracked complexes
+- The tracked complexes are added into the qlicserver output for external
+  access via the qlic utility. The "trackonly" entry of the config table
+  controls this feature.
+
+---------------
+### Release 2006-04-13 (version 1.16)
+
+#### bugfix
+- handle unqualified hostnames in queue instances
+- catch fork failure in daemon mode
+
+#### new feature
+- added **-i** option -- to generate lookup table text based on license
+  features queried from the license server
+
+
+---------------
+###Release 2005-11-15 (version 1.14)
+
+- First official public release
+

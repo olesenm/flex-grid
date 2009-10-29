@@ -1,0 +1,75 @@
+---
+layout:  default
+navname: Background
+sidenav:
+  - head: Background
+  - text: 2007 Workshop (pdf)
+    href: doc/SGE-WS2007-FlexLM-Integration-MarkOlesen.pdf
+---
+
+The <a href="doc/SGE-WS2007-FlexLM-Integration-MarkOlesen.pdf">Workshop Presentation</a>
+is the recommended starting place to understanding what **qlicserver**
+tries to accomplish. It reiterates the basic concept outlined in the original
+[posting to the GridEngine users' list](http://gridengine.sunsource.net/ds/viewMessage.do?dsForumId=38&dsMessageId=17365 "email posting from 2005-09-30")
+
+
+---------------
+
+### Preamble ###
+
+The issue at hand is the correct bookkeeping of floating licenses when the
+GridEngine may or may not share them with other (non-GridEngine)
+applications. If the float licenses are to be used exclusively on the
+GridEngine, with no means of external access, you need to read no further.
+The Administration Guide provides an adequate example of this task. For the
+balance of the installations (arguably the vast majority), you will need a
+*combination* of internal and external license tracking to accomplish the
+task correctly. This is what the **qlicserver** code does.
+
+### In a Nutshell
+
+>  Relying on load-sensors to determine license availability simply does not
+>  work with the GridEngine notion of comsumable resources.
+
+
+1. Instead we query the license server to determine which licenses have been
+   granted and to whom (user and machine) and map these names to equivalent
+   GridEngine resource names. We'll term these values the "**total**"
+   resources available.
+
+2. Next we query the GridEngine to determine which resources were requested.
+   These resources we can call "**internal**" usage.
+
+3. Any licenses that were granted but that don't have a correspondence to
+   the **internal** (GridEngine) usage are deemed "**external**"
+   (beyond GridEngine's control).
+
+4. The number of licenses we are allowed to manage within GridEngine is
+   simply the difference:
+
+        managed = total - external
+
+5. Adjust the number of licenses that GridEngine is allowed to manage
+   via the `qconf -mattr` command.
+
+
+### Remaining Race Condition
+
+This solution eliminates most, but not every race condition:
+
+1. A delay exists between when a non-GridEngine job starts and its existence
+   is registered via the `qconf -mattr` procedure.
+
+   Double-checking the license availability within an prolog script can help
+   here. Using the exit code `99` will signal the GridEngine to reschedule
+   the job for the next interval. This extra safety is no longer needed
+   after the next load report interval, at which point the `complex_values`
+   will have been updated to reflect the non-GridEngine usage.
+
+2. A race condition can occur when the GridEngine job has started
+   but is slower to occupy the licenses than a non-GridEngine job
+   that starts afterwards.
+
+   There is no general way to preventing this, but some software returns
+   particular exit codes when a license is missing.
+

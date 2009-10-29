@@ -1,0 +1,109 @@
+---
+layout:  default
+navname: Configuration
+sidenav:
+  - head: Configuration
+  - text: General
+    href: config.html
+  - text: Parameters
+    href: config-param.html
+  - text: File
+    href: config-file.html
+  - text: Limits
+    href: config-limits.html
+    active: true
+  - text: Output
+    href: config-output.html
+---
+
+
+### Resource limits
+
+Normally, the total number of a served feature (license) reported by the
+server is to be managed by this program and ultimately by the GridEngine.
+There are, however, situations in which it is useful to restrict the
+number of resources to be managed:
+
+- Rectify buggy license server information
+
+We've had this problem with a paricular vendor daemon getting confused by a
+mix of maintained and non-maintained licenses. The server reports having an
+extra nonexistent license!
+
+- Reserve some license for external use
+
+When licenses can be used interactively or in batch mode, it can be
+necessary to reserve some licenses for interactive use.
+
+- Prevent jobs from flooding the cluster
+
+When a large number of licenses are available, it might be desirable to only
+use a fraction of them, rather than filling the entire cluster. This can
+also be useful when managing unlicensed and unlimited resources.
+
+When resource limits are used, it can be sometimes be useful to attach the
+*normal* limit directly to the resource within the configuration file as
+well as using the resource limit files. This provides a fallback value to be
+used when the file-based limit is removed.
+
+For internal resources, the situation is a little bit tricker. The limits
+given correspond directly to the resource value managed by the GridEngine.
+Thus the last file-based limit that was imposed will be remain in effect
+until a new limit is imposed. To have the internal resource restore to a
+particular value when the limits are removed, it is necessary to supply
+addtional information about the resource in the form of the optional
+\[total\] attribute.
+
+### Resource limit files
+
+When licenses are being used interactively and in the cluster, it can
+sometimes be necessary to temporarily adjust the number of managed
+resources. For this reason, the limits of the managed resources can also be
+adjusted by using an additional limits file or by a set of files.
+
+When `qlicserver.limits` is a file, the limits are extracted from an
+XML structure like this:
+
+        <?xml version="1.0"?>
+        <qlicserverLimits>
+          <limits>
+            <limit name="gtpower" limit="7"/>
+            <limit name="stars"   limit="2"/>
+            <limit name="starp"   limit="20"/>
+          </limits>
+        </qlicserverLimits>
+
+Using a single file is fine, but what if a user should be allowed to adjust
+the limits on a particular resource, but not touch the limits of any other
+resources? The simple solution used here is to split the resource limits
+across several files and use file permissions (or ACLs) to control access as
+required. For some sites, some form of authentication program could be also
+be used when generating the file contents.
+
+When `qlicserver.limits` is a directory, all the files in the directory
+that correspond to a resource name will be read. If a file does not exist,
+or has the incorrect permissions, the user cannot change the limits for a
+particular resource. For example,
+
+        -rw-r--r--  user group   qlicserver.limits/resource1
+        -rw-rw-r--  user group1  qlicserver.limits/resource2
+        -rw-rw-r--  user group2  qlicserver.limits/resource3
+
+The format of the files is very simple. A line containing a single integer
+(with possible whitespace) will be taken as the limit. If multiple lines
+match this criterion, only the final one will be used.  For example,
+
+        # "gtpower" limit modified by olesen 2008-01-31T09:00:00
+        4
+
+Removing this limit just requires any non-integer value:
+
+        # "gtpower" limit modified by olesen 2008-01-31T09:05:00
+        NONE
+
+The `qlic` utility provides a simple means of specifying new limits:
+
+        qlic resource=limit .. resource=limit  # set new limits
+
+Using **qlic -l** lists the current limits.
+

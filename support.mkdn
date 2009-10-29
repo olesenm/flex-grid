@@ -1,0 +1,19 @@
+---
+layout:  default
+navname: Support
+sidenav:
+  - head: Support
+---
+
+### Email Discussion List
+
+Questions should be directed on the GridEngine *users'* mailing list:<br/>
+[http://gridengine.sunsource.net/maillist.html](http://gridengine.sunsource.net/maillist.html)
+
+### Additional Resources
+
+The [GridEngine wiki](http://wiki.gridengine.info/wiki):
+- [http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Integration](http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Integration)
+- [http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Configuration](http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Configuration)
+- The [presentation (pdf)](doc/SGE-WS2007-FlexLM-Integration-MarkOlesen.pdf)
+  from the [2007 workshop](http://gridengine.sunsource.net/workshop10-12.09.07/proceedings.html)

@@ -1,0 +1,12 @@
+---
+layout:  default
+navname: Issues
+sidenav:
+  - head: Known Issues
+---
+
+### Handling timeouts continues to be an issue.
+
+- As it turns out, even with newer Perl versions, mixing alarm signals
+  (used for handling timeouts) with threads remains a problem.
+

@@ -1,0 +1,15 @@
+---
+layout:  default
+navname: Requirements
+sidenav:
+  - head: Software Requirements
+---
+
+### Software Requirements
+
+The functional requirements are very basic.
+- A fairly recent version of Perl
+- GridEngine 6.x -- older versions may have buggy XML output
+
+GridEngine manager permissions are required for operation.
+

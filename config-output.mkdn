@@ -1,0 +1,111 @@
+---
+layout:  default
+navname: Configuration
+sidenav:
+  - head: Configuration
+  - text: General
+    href: config.html
+  - text: Parameters
+    href: config-param.html
+  - text: File
+    href: config-file.html
+  - text: Limits
+    href: config-limits.html
+  - text: Output
+    href: config-output.html
+    active: true
+---
+
+### XML output
+
+By default, **qlicserver** operates in a silent mode without output. Using
+the standard `output=...` parameter, the result of the query process can be
+saved in XML format.  The output strongly resembles the
+[qlicserver.config file](config-file.html) contents.
+A sample output is given here, with interspersed comments:
+
+        <?xml version="1.0"?>
+        <?qlicserver date="2009-10-22T08:09:23"?>
+        <qlicserver releaseDate="2009-10-12">
+        <!-- adjustment:
+             qconf -mattr exechost complex_values NONE global
+        -->
+
+The XML comment summarizes the `qconf` adjustment that was imposed.
+
+          <query>
+            <cluster name="demo" root="/opt/grid" cell="default"/>
+            <host>demohost</host>
+            <user>sgeadmin</user>
+            <time epoch="1256191763">2009-10-22T08:09:23</time>
+          </query>
+
+The `<query>` section provides information about the host on which the program
+ran, the user who invoked the program. The `<time>` element contains
+information about when the program ran. This information can be useful if
+the values are being cached or to quickly determine when the program died.
+The extra \[epoch\] attribute is supplied for easier calculation with the Unix
+epoch instead of converting the ISO-8601 time format.
+
+          <parameters>
+            <env name="SGE_ROOT">/opt/grid</env>
+            <env name="SGE_CELL">default</env>
+            <env name="SGE_ARCH">lx26-x86</env>
+            <env name="SGE_BINARY_PATH">/opt/grid/bin/lx26-x86</env>
+            <param name="LM_LICENSE_FILE">@serv1</param>
+            <param name="dir">/opt/grid/default/site</param>
+            <param name="output">qlicserver.cache</param>
+            <param name="qhost">qhost.cache</param>
+            <param name="qstat">qstat.cache</param>
+          </parameters>
+
+The `<parameters>` section contains both `<param>` elements and
+`<env>` elements. The `<env>` elements are only printed if they
+are set. If a value can be set as a parameter or from the environment (eg,
+LM_LICENSE_FILE), preference will be given to printing the parameter
+setting.
+
+          <resources>
+            <derived name="starcd">
+              <element>starp</element>
+              <element>stars</element>
+            </derived>
+
+For general reference, the elements of any derived resources are given
+first.
+
+            <resource name="abaqus" served="abaqus" total="12" extern="5" free="7">
+              <user name="user1" host="host1" type="extern">5</user>
+            </resource>
+            <resource name="hexa" served="aihexa" total="2" free="2" type="track"/>
+            <resource name="hyper" served="HyperWorks" total="0" type="track"/>
+
+The resource distribution is given in a readable form. From this example,
+the `total="0"` shows that the HyperWorks license daemon was suffering from
+a slight problem at the moment.
+
+            <resource name="starcd" total="28" limit="26" intern="24" waiting="12" free="2">
+              <user name="user2" host="host2" type="intern">6</user>
+              <user name="user3" host="host3" type="intern">6</user>
+              <user name="user3" host="host4" type="intern">6</user>
+              <user name="user3" host="host5" type="intern">6</user>
+              <user name="user4" type="waiting">6</user>
+              <user name="user3" type="waiting">6</user>
+            </resource>
+
+Information is not only provided about where a resource is in used, but also
+about the current demand. Since the `starcd` resource is derived, there is
+no \[served\] attribute. Job holds and execution after a particular time are
+ignored when building these values.
+
+The `<resource>` attributes that may be written:
+
+    name    served  total   limit
+    extern  intern  waiting free    type
+
+Extra notes and urgencies are not retained when printing the resources.
+
+          </resources>
+        </qlicserver>
+
+

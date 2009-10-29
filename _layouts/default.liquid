@@ -1,0 +1,86 @@
+---
+# -*- html -*- mode
+topnav:
+  - text: About
+    href: index.html
+  - text: Background
+    href: background.html
+  - text: Requirements
+    href: requirements.html
+  - text: License
+    href: license.html
+  - text: Download
+    href: download.html
+  - text: Configuration
+    href: config.html
+  - text: Issues
+    href: issues.html
+  - text: Changes
+    href: changes.html
+  - text: Support
+    href: support.html
+---
+{% include header-default.html %}
+
+    <!-- begin: main navigation #nav -->
+    <div id="nav">
+      <!-- skiplink anchor: navigation -->
+      <a id="navigation" name="navigation"></a>
+      <div class="hlist">
+        <ul>
+        {% for navitem in page.topnav %}
+        {% if navitem.text == page.navname %}<li id="current">{% else %}<li>{% endif %}
+        <a href="{{ navitem.href }}" {% if navitem.title %}title="{{ navitem.title }}"{% endif %}  >{{ navitem.text }}</a>
+        </li>
+        {% endfor %}
+        </ul>
+      </div>
+    </div>
+    <!-- end: main navigation -->
+    <!-- begin: main content area #main -->
+    <div id="main">
+      <!-- begin: #col1 static column -->
+      <div id="col1">
+        <div id="col1_content" class="clearfix">
+          <!-- skiplink anchor: Content -->
+
+        {% if page.sidenav != null %}
+        {% for navitem in page.sidenav %}
+        {% if navitem.head %}
+        {% unless forloop.first %}</ul>{% endunless %}{% comment %}finish prev list{% endcomment %}
+        <h6 class="vlist">{{ navitem.head }}</h6>
+        <ul class="vlist">
+        {% if forloop.length == 1 %}<li><!-- no items --></li>{% endif %}
+        {% elsif navitem.active %}
+        <li class="active"><strong>{{ navitem.text }}</strong></li>
+        {% elsif navitem.href %}
+        <li><a href="{{ navitem.href }}" {% if navitem.title %}title="{{ navitem.title }}"{% endif %}  >{{ navitem.text }}</a></li>
+        {% elsif navitem.text %}
+        <li><strong>{{ navitem.text }}</strong></li>
+        {% endif %}
+        {% endfor %}
+        </ul>{% comment %}finish prev list{% endcomment %}
+        {% endif %}
+
+{% include project-links.html %}
+
+
+        </div>
+      </div>
+      <!-- end: #col1 -->
+      <!-- begin: #col3 - first float column -->
+      <div id="col3">
+        <div id="col3_content" class="clearfix"> <a id="content" name="content"></a>
+          <!-- skiplink anchor: Content -->
+
+         {{ content }}
+
+
+        </div>
+        <div id="ie_clearing">&nbsp;</div>
+        <!-- End: IE Column Clearing -->
+      </div>
+      <!-- end: #col3 -->
+    </div>
+    <!-- end: #main -->
+{% include footer-default.html %}

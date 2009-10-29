@@ -1,0 +1,30 @@
+---
+layout:  default
+navname: Configuration
+sidenav:
+  - head: Configuration
+  - text: General
+    href: config.html
+    active: true
+  - text: Parameters
+    href: config-param.html
+  - text: File
+    href: config-file.html
+  - text: Limits
+    href: config-limits.html
+  - text: Output
+    href: config-output.html
+---
+
+### Command-line options and parameters
+
+As outlined in the usage provided by the program, the command-line
+encompasses both options and parameters:
+
+        usage: qlicserver [OPTION] [PARAM]
+
+The options primarily control the general mode of the program (i.e,, setup,
+prolog query, daemon mode, etc.), whereas the parameters are used to provide
+finer-grained control.
+
+
