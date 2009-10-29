@@ -1,0 +1,32 @@
+### Note
+
+This code is provided as a courtesy to other users with absolutely
+**no guarantees**! Usage questions should be posted to the
+users@gridengine.sunsource.net mailing list -- please do not email
+the author directly.
+
+The github [project page](http://olesenm.github.com/flex-grid) contains
+extra details. Some additional documentation (eg, usage and frequently asked
+questions about this software) can also be found on the gridengine wiki:
+
+    http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Integration
+    http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Configuration
+
+
+Additional Resources:
+- [Grid Engine Project](http://gridengine.sunsource.net)
+- [Grid Engine MailLists](http://gridengine.sunsource.net/maillist.html)
+
+---------------
+
+The supplementary program **qloadsensor** illustrates one possibility of
+integrating the **qlicserver** program.
+
+The supplementary program **qlic** is a simple means of parsing the output
+file for a quick overview. The programm **lacct**, which extracts the output
+from the SGE accounting file, is still too ugly to be released.
+
+The supplementary program **filter-accounting** is a simple means of
+extracting portions of the GridEngine accounting(5) file according to the
+job end_time.
+
