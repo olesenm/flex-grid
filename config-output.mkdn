@@ -7,7 +7,7 @@ sidenav:
     href: config.html
   - text: Parameters
     href: config-param.html
-  - text: File
+  - text: Config File
     href: config-file.html
   - text: Limits
     href: config-limits.html
@@ -19,7 +19,7 @@ sidenav:
 ### XML output
 
 By default, **qlicserver** operates in a silent mode without output. Using
-the standard `output=...` parameter, the result of the query process can be
+the standard `output=...` parameter, the results of the query process can be
 saved in XML format.  The output strongly resembles the
 [qlicserver.config file](config-file.html) contents.
 A sample output is given here, with interspersed comments:
@@ -31,7 +31,9 @@ A sample output is given here, with interspersed comments:
              qconf -mattr exechost complex_values NONE global
         -->
 
-The XML comment summarizes the `qconf` adjustment that was imposed.
+The XML processing-instruction provides information about when the program
+was invoked. The XML comment summarizes the `qconf` adjustment that was
+imposed.
 
           <query>
             <cluster name="demo" root="/opt/grid" cell="default"/>
@@ -45,7 +47,9 @@ ran, the user who invoked the program. The `<time>` element contains
 information about when the program ran. This information can be useful if
 the values are being cached or to quickly determine when the program died.
 The extra \[epoch\] attribute is supplied for easier calculation with the Unix
-epoch instead of converting the ISO-8601 time format.
+epoch instead of converting the ISO-8601 time format. Note that for backwards
+compatibility there is a certain redundancy here. The time information is
+also available in the XML processing-instruction.
 
           <parameters>
             <env name="SGE_ROOT">/opt/grid</env>
@@ -59,10 +63,10 @@ epoch instead of converting the ISO-8601 time format.
             <param name="qstat">qstat.cache</param>
           </parameters>
 
-The `<parameters>` section contains both `<param>` elements and
-`<env>` elements. The `<env>` elements are only printed if they
-are set. If a value can be set as a parameter or from the environment (eg,
-LM_LICENSE_FILE), preference will be given to printing the parameter
+The `<parameters>` section contains both `<param>` elements and `<env>`
+elements. The `<env>` elements are only printed if they are set. If a value
+can be set as a parameter or taken from the environment (eg,
+LM_LICENSE_FILE), preference will be given to displaying the parameter
 setting.
 
           <resources>
@@ -93,17 +97,18 @@ a slight problem at the moment.
               <user name="user3" type="waiting">6</user>
             </resource>
 
-Information is not only provided about where a resource is in used, but also
-about the current demand. Since the `starcd` resource is derived, there is
-no \[served\] attribute. Job holds and execution after a particular time are
-ignored when building these values.
+Information is not only provided about where a resource is being used, but
+also about the current demand. In this example, since the `starcd` resource
+is derived, there is no \[served\] attribute. Any job holds and execution
+after a particular time are ignored when building these values.
 
-The `<resource>` attributes that may be written:
+The `<resource>` attributes that may also be written:
 
-    name    served  total   limit
-    extern  intern  waiting free    type
+        name    served  total   limit
+        extern  intern  waiting free    type
 
-Extra notes and urgencies are not retained when printing the resources.
+Any extra notes and urgencies are not retained when displaying the
+resources.
 
           </resources>
         </qlicserver>

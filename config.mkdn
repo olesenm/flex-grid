@@ -8,7 +8,7 @@ sidenav:
     active: true
   - text: Parameters
     href: config-param.html
-  - text: File
+  - text: Config File
     href: config-file.html
   - text: Limits
     href: config-limits.html
@@ -21,10 +21,42 @@ sidenav:
 As outlined in the usage provided by the program, the command-line
 encompasses both options and parameters:
 
-        usage: qlicserver [OPTION] [PARAM]
+    usage: qlicserver [OPTION] [PARAM]
 
 The options primarily control the general mode of the program (i.e,, setup,
 prolog query, daemon mode, etc.), whereas the parameters are used to provide
 finer-grained control.
 
+##### help/debug options:
+    -h      help
+
+##### initialization options:
+    -c      show complex definitions (format as per 'qconf -sc')
+              for possible inclusion via 'qconf -Mc ...'
+
+    -C      provide initial values for
+              'qconf -mattr exechost complex_values ... global'
+
+    -i      information about license features
+              (generates text for the config lookup table)
+
+##### query options:
+    -l resource=value,...
+
+            similar to qsub(1), query the license server for the availability
+            of the requested resources. A missing value is treated as 1.
+            The resource 'slots' will be used to scale the resource requests
+            as required. Prints the resources available and exits with '99' if
+            the condition cannot be satisfied. Only externally served resources
+            are checked - resources internal to the GridEngine should never
+            need this check.
+
+    -n      suppress adjustment of the managed licenses (useful for testing)
+
+##### daemon options:
+    -d      run query as a daemon
+
+    -k      kill running daemon
+
+    -w      wake-up daemon from sleep
 

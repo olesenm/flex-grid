@@ -8,7 +8,7 @@ sidenav:
   - text: Parameters
     href: config-param.html
     active: true
-  - text: File
+  - text: Config File
     href: config-file.html
   - text: Limits
     href: config-limits.html
@@ -59,7 +59,7 @@ For proper and reliable operation in the daemon mode (using the option
 **-d**), the program will normally not run as a true daemon, but instead
 watch the parent process from where it started. This behaviour provides a
 means of handling controlled shutdown and avoiding communicating with a
-non-existent `sge_qmaster`. An easy way to have this behaviour, is to start
+non-existent `sge_qmaster`. An easy way to have this behaviour is to start
 the **qlicserver** program from a load-sensor script on the headnode. When
 the `sge_execd` is stopped or restarted, the load-sensor script will exit
 and the program will follow. This default behaviour is equivalent to
@@ -76,7 +76,7 @@ process:
 
 The specified process name can be any process currently running on the
 system (apart from a process named *ppid*, since that is already taken for
-the default). If you really wished, specifying *ppid=vi* will have the
+the default). If you really wished to, specifying *ppid=vi* would have the
 program exit when the vi editor closes!
 
 For any remaining situations, a numeric process id can be specified.
@@ -86,18 +86,18 @@ run as a true daemon:
         ppid=0
         ppid=1
 
-For the default behaviour (ppid=ppid), a zero signal is sent to check if the
-process is still alive. For the other cases, a `ps` command will be used
-when the `/proc` file-system does not appear to exist.
+For the default behaviour (*ppid=ppid*), a zero signal is sent to check if
+the process is still alive. For the other cases, a `/bin/ps` command will
+be used when the `/proc` file-system does not appear to exist.
 
 ### Standard Parameters
 
 The remaining parameters can be specified on the command-line or in a
 configuration file. If the modification time of a configuration file changes
-between daemon loops, it will be re-read and the parameter values are
-updated. It is thus possible to change many parameters without restarting
-the program. The command-line parameters maintained their precedence
-throughout the program life.
+between daemon loops, it will be re-read and the parameter values updated.
+It is thus possible to change various parameters without restarting the
+program. The command-line parameters maintained their precedence throughout
+the program life.
 
 ##### dir=DIR #####
 
@@ -125,7 +125,8 @@ specified. For example,
 ##### output=FILE #####
 
 This parameter specifies the file to which the current query status should
-be saved. The query status is written in a L</XML output format>.
+be saved. The query status is written in an
+[XML output format](config-output.html).
 
 When using the **-n** option to conduct a dry-run, it can be useful to send
 the output to the stdout:
@@ -137,7 +138,7 @@ the output to the stdout:
 This parameter specifies that a supplementary GridEngine `qhost` command be
 executed and the results saved to a file. This parameter is likely only
 useful when the generated data can be fed to some other diagnostic tool or
-web interface.
+web interface such as [xml-qstat](http://olesenm.github.com/xml-qstat/).
 
 ##### qstat=FILE #####
 
@@ -154,11 +155,18 @@ the program usage.
 ##### LM_LICENSE_FILE=STRING #####
 
 This parameter overrides the identically named environment setting used for
-the FlexLM license server query.
+the FlexLM license server query. The string is a colon-delimited list of
+servers:
+
+        LM_LICENSE_FILE=port@server1:port@server2
+
+License triads are grouped by brace brackets:
+
+        LM_LICENSE_FILE=port1@server1:{port@triad1:port@triad2:port@triad3}
 
 ##### lmutil=STRING #####
 
-Instead of searching the path for the `lmutil` command need for the FlexLM
-license server query, this parameter can be used to provide a fully
+Instead of searching the `$PATH` for the `lmutil` command need for the
+FlexLM license server query, this parameter can be used to provide a fully
 qualified path to `lmutil` command.
 

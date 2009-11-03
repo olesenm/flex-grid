@@ -7,7 +7,7 @@ sidenav:
     href: config.html
   - text: Parameters
     href: config-param.html
-  - text: File
+  - text: Config File
     href: config-file.html
   - text: Limits
     href: config-limits.html
@@ -24,27 +24,26 @@ server is to be managed by this program and ultimately by the GridEngine.
 There are, however, situations in which it is useful to restrict the
 number of resources to be managed:
 
-- Rectify buggy license server information
+- **Rectify buggy license server information** -- We've had this problem
+  with a paricular vendor daemon getting confused by a mix of maintained and
+  non-maintained licenses. The server reports having an extra nonexistent
+  license!
 
-We've had this problem with a paricular vendor daemon getting confused by a
-mix of maintained and non-maintained licenses. The server reports having an
-extra nonexistent license!
+- **Reserve some license for external use** -- When licenses can be used
+  interactively or in batch mode, it can be necessary to reserve some
+  licenses for interactive use.
 
-- Reserve some license for external use
-
-When licenses can be used interactively or in batch mode, it can be
-necessary to reserve some licenses for interactive use.
-
-- Prevent jobs from flooding the cluster
-
-When a large number of licenses are available, it might be desirable to only
-use a fraction of them, rather than filling the entire cluster. This can
-also be useful when managing unlicensed and unlimited resources.
+- **Prevent jobs from flooding the cluster** -- When a large number of
+  licenses are available, it might be desirable to only use a fraction of
+  them, rather than filling the entire cluster. This can also be useful when
+  managing unlicensed and unlimited resources.
 
 When resource limits are used, it can be sometimes be useful to attach the
 *normal* limit directly to the resource within the configuration file as
 well as using the resource limit files. This provides a fallback value to be
 used when the file-based limit is removed.
+
+### Resource limits for internal resources
 
 For internal resources, the situation is a little bit tricker. The limits
 given correspond directly to the resource value managed by the GridEngine.

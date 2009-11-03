@@ -7,7 +7,7 @@ sidenav:
     href: config.html
   - text: Parameters
     href: config-param.html
-  - text: File
+  - text: Config File
     href: config-file.html
     active: true
   - text: Limits
@@ -18,11 +18,11 @@ sidenav:
 
 ### Input Files
 
-Although an XML syntax has been choosen for the input files, please don't
-try to show off by breaking the extremely lightweight XML parser used in the
+Although an XML syntax has been used for the input files, please don't try
+to show off by breaking the extremely lightweight XML parser used in the
 program. The parser will tries to find specific XML tags and doesn't really
-care about much else.  To make life generally easier, it does properly strip
-XML comments.
+care about much else. To make life generally easier, however, it does
+properly strip XML comments.
 
 ### qlicserver.config
 
@@ -56,7 +56,8 @@ cleared. The normal behaviour is to merge with existing values.
 The \[name\] attribute is mandatory for the `<resource>` elements. The
 optional \[served\] attribute maps the license 'feature' served by the
 license manager to a GridEngine resource (complex) name. A resource without
-a \[served\] attribute is considered an internal resource.
+a \[served\] attribute is considered an internal resource -- ie, managed
+entirely by GridEngine.
 
             <resource name="nastran" served="NASTRAN" urgency="100"/>
 
@@ -69,28 +70,25 @@ the **-c** option.
 
 If the optional \[total\] attribute is given, this can be used to establish
 what the *normal* configuration of this internal resource should look like
-as noted in the section about L</limits for internal resources>. The \[total\]
-attribute has no meaning for served resources.
+as noted in the section about [limits for internal
+resources](config-limits.html#resource_limits_for_internal_resources).
+The \[total\] attribute has no meaning for
+served resources.
 
             <resource name="hexa" served="aihexa" type="track"/>
 
-The optional \[type\] attribute with the value `track` indicates that this
+The optional \[type\] attribute with the value *track* indicates that this
 resource is not to be managed, but its status should be added to the output.
 This is primarily interesting for interactive licenses - to see who has used
 up all of your licenses.
 
             <resource name="starjob" served="starpar" type="job"/>
-
-The optional \[type\] attribute with the value `job` indicates that this
-resource is to be counted once per job, rather than once per slot. This
-attribute only affects the behaviour of the `-c` output and the `-l` query
-options. The per job accounting is a proposed feature for newer GridEngine
-versions.
-
             <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
 
-Since the \[note\] attribute is not specified anywhere, we can use it to add
-some useful information for ourselves.
+the value *job* indicates that this resource is to be managed on a per-job
+rather than the default per-slot basis (new with GridEngine 6.2u2).
+Since the \[note\] attribute is not specified anywhere,
+we can use it to add some useful information for ourselves.
 
             <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
 
