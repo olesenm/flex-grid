@@ -28,9 +28,9 @@ topnav:
       <a id="navigation" name="navigation"></a>
       <div class="hlist">
         <ul>
-        {% for navitem in page.topnav %}
-        {% if navitem.text == page.navname %}<li id="current">{% else %}<li>{% endif %}
-        <a href="{{ navitem.href }}" {% if navitem.title %}title="{{ navitem.title }}"{% endif %}  >{{ navitem.text }}</a>
+        {% for t in page.topnav %}
+        {% if t.text == page.navname %}<li id="current">{% else %}<li>{% endif %}
+        <a href="{{ t.href }}"{% if t.title %} title="{{ t.title }}"{% endif %}>{{ t.text }}</a>
         </li>
         {% endfor %}
         </ul>
@@ -45,18 +45,18 @@ topnav:
           <!-- skiplink anchor: Content -->
 
         {% if page.sidenav != null %}
-        {% for navitem in page.sidenav %}
-        {% if navitem.head %}
+        {% for t in page.sidenav %}
+        {% if t.head %}
         {% unless forloop.first %}</ul>{% endunless %}{% comment %}finish prev list{% endcomment %}
-        <h6 class="vlist">{{ navitem.head }}</h6>
+        <h6 class="vlist">{{ t.head }}</h6>
         <ul class="vlist">
         {% if forloop.length == 1 %}<li><!-- no items --></li>{% endif %}
-        {% elsif navitem.active %}
-        <li class="active"><strong>{{ navitem.text }}</strong></li>
-        {% elsif navitem.href %}
-        <li><a href="{{ navitem.href }}" {% if navitem.title %}title="{{ navitem.title }}"{% endif %}  >{{ navitem.text }}</a></li>
-        {% elsif navitem.text %}
-        <li><strong>{{ navitem.text }}</strong></li>
+        {% elsif t.active %}
+        <li class="active"><strong>{{ t.text }}</strong></li>
+        {% elsif t.href %}
+        <li><a href="{{ t.href }}"{% if t.title %} title="{{ t.title }}"{% endif %}>{{ t.text }}</a></li>
+        {% elsif t.text %}
+        <li><strong>{{ t.text }}</strong></li>
         {% endif %}
         {% endfor %}
         </ul>{% comment %}finish prev list{% endcomment %}
