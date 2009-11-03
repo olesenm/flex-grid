@@ -8,6 +8,8 @@ sidenav:
     active: true
   - text: Programs
     href: programs.html
+  - text: Disclaimer
+    href: disclaimer.html
 ---
 
 ### About this software
