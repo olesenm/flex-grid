@@ -1,0 +1,214 @@
+#!/bin/sh
+#
+# Snapshot of the current GridEngine configuration using git for the
+# backend storage and tracking mechanism.
+#
+# Should normally be called via a cronjob.
+#
+# Following Edward Dale's idea:
+# http://scompt.com/blog/archives/2009/10/13/versioned-grid-engine-configuration
+# but using git for the backend
+#
+# initialize:
+#
+# git --git-dir=$GIT_DIR init --bare --shared=world
+#
+# Note: we use Perl for inplace editing since some versions of sed have
+#       problems with this task.
+################################################################################
+################################################################################
+# CUSTOMIZE THESE SETTINGS TO MATCH YOUR REQUIREMENTS:
+
+SGE_ROOT=/opt/grid
+SGE_CELL=default
+GIT_DIR=/data/cfd/share/git-repo/gridengine-config.git
+
+#
+# END OF CUSTOMIZE SETTINGS
+################################################################################
+################################################################################
+Script=${0##.*/}
+saveScript="$SGE_ROOT/util/upgrade_modules/save_sge_config.sh"
+export SGE_ROOT SGE_CELL GIT_DIR
+
+for i in git perl
+do
+    type $i >/dev/null 2>&1 || {
+        echo "Error: $Script - no '$i' found";
+        exit 1
+    }
+done
+
+#------------------------------------------------------------------------------
+usage() {
+    while [ "$#" -ge 1 ]; do echo "$1"; shift; done
+    cat<<USAGE
+
+usage: ${0##*/} [OPTION | GIT_COMMAND]
+options:
+  -help     display this usage
+  init      initialize git repo in $GIT_DIR
+
+pass-through git commands:
+  log       ls-files
+  show      whatchanged
+
+  Snapshot of the current GridEngine configuration using git for the
+  backend storage and tracking mechanism.
+
+* git repository stored here:
+  $GIT_DIR
+
+copyright (c) 2009 <Mark.Olesen@emconTechnologies.com>
+
+USAGE
+    exit 1
+}
+#------------------------------------------------------------------------------
+# parse options
+while [ "$#" -gt 0 ]
+do
+    case "$1" in
+    ( help | -h | -help )
+        usage
+        ;;
+    ( init )
+        shift
+        if [ -d "$GIT_DIR" ]
+        then
+            echo "Error: $Script - $GIT_DIR already exists"
+            exit 1
+        else
+            git --git-dir=$GIT_DIR init --bare --shared=world $@
+            rc=$?
+
+            # add a description for gitweb
+            i="$GIT_DIR/description"
+            if [ -f "$i" -a -w "$i" ]
+            then
+                echo "snapshot of the current GridEngine configuration" > $i
+            fi
+        fi
+        exit $rc
+        ;;
+    ( log | ls-files | show | whatchanged )
+        git --git-dir=$GIT_DIR $@
+        exit $?
+        ;;
+    (*)
+        usage "unknown option/argument: '$*'"
+        ;;
+    esac
+done
+
+
+
+[ -d "$GIT_DIR" ] || {
+    echo "git repo: $GIT_DIR does not exist"
+    exit 1
+}
+
+
+i="$SGE_ROOT/$SGE_CELL/common/settings.sh"
+if [ -f "$i" -a -r "$i" ]
+then
+    . "$i"
+else
+    echo "cannot read $i"
+    exit 1
+fi
+
+[ -f "$saveScript" -a -r "$saveScript" ] || {
+    echo "cannot read $i"
+    exit 1
+}
+
+# Create a fresh empty directory
+GIT_WORK_TREE=$(mktemp --tmpdir -d "$Script-XXXXXXXXXX")
+trap "rm -rf $GIT_WORK_TREE 2>/dev/null; exit 0" EXIT TERM INT
+
+[ -d "$GIT_WORK_TREE" ] || {
+    echo "Error: GIT_WORK_TREE=$GIT_WORK_TREE does not exist"
+    exit 1
+}
+
+$saveScript $GIT_WORK_TREE
+
+# minor error checking that the save script worked
+i="$GIT_WORK_TREE/backup_date"
+if [ -f "$i" -a -r "$i" ]
+then
+    msg=$(cat $i)
+else
+    echo "cannot read $i - $saveScript might have failed"
+    exit 1
+fi
+
+#------------------------------------------------------------------------------
+# cleanup
+#
+(
+    cd $GIT_WORK_TREE || exit 1;
+
+    # ignore accounting (too big)
+    rm -f cell/accounting
+
+    # ignore current users
+    rm -f users/*
+
+    # ignore current load_values for exec hosts
+    perl -i -ne '/^load_values/ or print' execution/*
+
+    # assign (consumable) complex_values to zero - otherwise we indirectly
+    # track the external license usage when qlicserver is being used
+    # also sort the complexes to avoid spurious changes
+    perl -i -p -e 'if (/^complex_values/) { chomp; ' \
+               -e 's{=\d+}{=0}g; s{^(complex\S+\s+)}{}; ' \
+               -e '$_ = $1 . join("," => sort split /,/) . "\n" }' \
+               execution/global
+
+    #
+    # determine if the configuration changed
+    #
+    # this is fairly roundabout until we find a better way
+    needsCommit=false
+
+    if [ -n "$(git --work-tree=. ls-files -d)" ]       # files deleted?
+    then
+        needsCommit=true
+    elif [ -n "$(git --work-tree=. ls-files -o)" ]     # files added?
+    then
+        needsCommit=true
+    else
+        set -- $(git --work-tree=. ls-files -m)        # files modified?
+
+        # changes in backup_date, jobseqnum etc alone are not enough
+        # to warrant a commit
+        while [ "$#" -ge 1 ]
+        do
+            case $1 in
+            ( arseqnum | backup_date | jobseqnum )
+                shift
+                ;;
+            (*)
+                needsCommit=true
+                break
+                ;;
+            esac
+        done
+    fi
+
+    if [ "$needsCommit" = true ]
+    then
+        # register all new files
+        git --work-tree=. add .
+
+        # commit everything
+        git --work-tree=. commit -a -m "$msg"
+    else
+        echo "no changes to be committed $msg"
+    fi
+)
+
+exit 0
+#------------------------------------------------------------------------------
