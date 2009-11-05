@@ -8,15 +8,11 @@ You are free:
 - **to Remix** -- to adapt the work
 
 Under the following conditions:
-- **Attribution** --
-  You must attribute the work and leave copyrights intact.
-- **Noncommercial** --
-  You may not use this work for commercial purposes
+- **Attribution** -- You must attribute the work and leave copyrights intact.
+- **Noncommercial** -- You may not use this work for commercial purposes
   (i.e., sell it) &ndash; unless you get the licensor's permission.
-- **Share Alike** --
-  If you alter, transform, or build upon this work, you may
-  distribute the resulting work only under the same or similar
+- **Share Alike** -- If you alter, transform, or build upon this work, you
+  may distribute the resulting work only under the same or similar
   license to this one.
 
-You are thus allowed to use it in a commercial environment, but not to sell
-it.
+You are thus allowed to use it in a commercial environment, but not to sell it.
