@@ -34,7 +34,7 @@ export SGE_ROOT SGE_CELL GIT_DIR
 for i in git perl
 do
     type $i >/dev/null 2>&1 || {
-        echo "Error: $Script - no '$i' found";
+        echo "Error: $Script - no '$i' found"
         exit 1
     }
 done
@@ -124,31 +124,36 @@ fi
 }
 
 # Create a fresh empty directory
-GIT_WORK_TREE=$(mktemp --tmpdir -d "$Script-XXXXXXXXXX")
-trap "rm -rf $GIT_WORK_TREE 2>/dev/null; exit 0" EXIT TERM INT
+# cannot use --tmpdir on older systems
+tmpDir=$(mktemp -d "/tmp/sgeSaveConfig.XXXXXXXXXX")
+trap "rm -rf $tmpDir 2>/dev/null; exit 0" EXIT TERM INT
 
-[ -d "$GIT_WORK_TREE" ] || {
-    echo "Error: GIT_WORK_TREE=$GIT_WORK_TREE does not exist"
+[ -d "$tmpDir" ] || {
+    echo "Error: temp dir '$tmpDir' does not exist"
     exit 1
 }
 
-$saveScript $GIT_WORK_TREE
-
-# minor error checking that the save script worked
-i="$GIT_WORK_TREE/backup_date"
-if [ -f "$i" -a -r "$i" ]
-then
-    msg=$(cat $i)
-else
-    echo "cannot read $i - $saveScript might have failed"
-    exit 1
-fi
+$saveScript $tmpDir
 
 #------------------------------------------------------------------------------
 # cleanup
 #
 (
-    cd $GIT_WORK_TREE || exit 1;
+    cd $tmpDir || exit 1
+
+    # all operations are now in the current directory
+    GIT_WORK_TREE=.
+    export GIT_WORK_TREE
+
+    # minor error checking that the save script worked
+    if [ -f backup_date -a -r backup_date ]
+    then
+        msg=$(cat backup_date)
+    else
+        echo "cannot read backup_date - $saveScript might have failed"
+        exit 1
+    fi
+
 
     # ignore accounting (too big)
     rm -f cell/accounting
@@ -163,7 +168,7 @@ fi
     # track the external license usage when qlicserver is being used
     # also sort the complexes to avoid spurious changes
     perl -i -p -e 'if (/^complex_values/) { chomp; ' \
-               -e 's{=\d+}{=0}g; s{^(complex\S+\s+)}{}; ' \
+               -e 's/=\d+/=0/g; s/^(complex\S+\s+)//; ' \
                -e '$_ = $1 . join("," => sort split /,/) . "\n" }' \
                execution/global
 
@@ -173,14 +178,16 @@ fi
     # this is fairly roundabout until we find a better way
     needsCommit=false
 
-    if [ -n "$(git --work-tree=. ls-files -d)" ]       # files deleted?
+    if [ -n "$(git ls-files -d)" ]       # files deleted?
     then
         needsCommit=true
-    elif [ -n "$(git --work-tree=. ls-files -o)" ]     # files added?
+    elif [ -n "$(git ls-files -o)" ]     # files added?
     then
         needsCommit=true
     else
-        set -- $(git --work-tree=. ls-files -m)        # files modified?
+        # files modified?
+        # do it the long way to ensure we also get staged modifications
+        set -- $(git status | perl -ne 's/^#\s+modified:// and print')
 
         # changes in backup_date, jobseqnum etc alone are not enough
         # to warrant a commit
@@ -201,10 +208,10 @@ fi
     if [ "$needsCommit" = true ]
     then
         # register all new files
-        git --work-tree=. add .
+        git add .
 
         # commit everything
-        git --work-tree=. commit -a -m "$msg"
+        git commit -a -m "$msg"
     else
         echo "no changes to be committed $msg"
     fi
