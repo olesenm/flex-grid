@@ -3,14 +3,22 @@ layout:  default
 navname: Support
 sidenav:
   - head: Support
-  - text: Feature request
-    href: http://wiki.github.com/olesenm/flex-grid/feature-request
+  - text: Issue tracker
+    href: http://github.com/olesenm/flex-grid/issues
 ---
 
 ### Email Discussion List
 
-Questions should be directed on the GridEngine *users'* mailing list:<br/>
-[http://gridengine.sunsource.net/maillist.html](http://gridengine.sunsource.net/maillist.html)
+Questions should be directed to the **[Grid Engine users' mailing
+list](http://gridengine.sunsource.net/maillist.html)**.
+
+
+### Issue Tracker
+
+The github issue tracker can used both for noting issues and for recording
+feature requests. But by all means, please discuss them on the GridEngine
+users' mailing list too.
+
 
 ### Additional Resources
 
