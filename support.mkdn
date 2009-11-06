@@ -3,6 +3,8 @@ layout:  default
 navname: Support
 sidenav:
   - head: Support
+  - text: Feature request
+    href: http://wiki.github.com/olesenm/flex-grid/feature-request
 ---
 
 ### Email Discussion List
