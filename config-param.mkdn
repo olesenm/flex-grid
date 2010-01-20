@@ -34,7 +34,7 @@ same directory as the **qlicserver** program itself. The *config* parameter
 can be used to specify an alternative configuration to use. This can often
 be useful in testing situations.
 
-##### limits=FILE #####
+#### limits=FILE ####
 
 By default, the `qlicserver.limits` is searched in the same directory as
 the **qlicserver** program itself. The *limits* parameter can be used to
@@ -47,13 +47,13 @@ used when the program initial starts, but are not updated subsequently
 within the daemon loop. These parameters may appear on the command-line or
 in a configuration file.
 
-##### delay=INT #####
+#### delay=INT ####
 
 This is the waiting period in seconds (positive integer) between queries in
 the daemon mode (invoked by the **-d** option). Invalid values are ignored.
 The default period is documented in the program usage.
 
-##### ppid=(ppid | CMD | N) #####
+#### ppid=(ppid | CMD | N) ####
 
 For proper and reliable operation in the daemon mode (using the option
 **-d**), the program will normally not run as a true daemon, but instead
@@ -99,7 +99,7 @@ It is thus possible to change various parameters without restarting the
 program. The command-line parameters maintained their precedence throughout
 the program life.
 
-##### dir=DIR #####
+#### dir=DIR ####
 
 This provides a common output directory for the output files specified by
 the `output`, `qhost`, `qstat` parameters. For example,
@@ -122,7 +122,7 @@ specified. For example,
         output=xmlcache/qlicserver.xml \
         qstat=/srv/www2/htdocs/qstat.xml
 
-##### output=FILE #####
+#### output=FILE ####
 
 This parameter specifies the file to which the current query status should
 be saved. The query status is written in an
@@ -133,26 +133,26 @@ the output to the stdout:
 
         output=-
 
-##### qhost=FILE #####
+#### qhost=FILE ####
 
 This parameter specifies that a supplementary GridEngine `qhost` command be
 executed and the results saved to a file. This parameter is likely only
 useful when the generated data can be fed to some other diagnostic tool or
 web interface such as [xml-qstat](http://olesenm.github.com/xml-qstat/).
 
-##### qstat=FILE #####
+#### qstat=FILE ####
 
 The GridEngine `qstat` command is issued as a central part of the
 **qlicserver** logic.  This parameter specifies that these byproduct results
 also be saved to a file.
 
-##### timeout=INT #####
+#### timeout=INT ####
 
 The timeout in seconds (positive integer) to be used when executing system
 commands. Invalid values are ignored. The default timeout is documented in
 the program usage.
 
-##### LM_LICENSE_FILE=STRING #####
+#### LM_LICENSE_FILE=STRING ####
 
 This parameter overrides the identically named environment setting used for
 the FlexLM license server query. The string is a colon-delimited list of
@@ -164,7 +164,7 @@ License triads are grouped by brace brackets:
 
         LM_LICENSE_FILE=port1@server1:{port@triad1:port@triad2:port@triad3}
 
-##### lmutil=STRING #####
+#### lmutil=STRING ####
 
 Instead of searching the `$PATH` for the `lmutil` command need for the
 FlexLM license server query, this parameter can be used to provide a fully

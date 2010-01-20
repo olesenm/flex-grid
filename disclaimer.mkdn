@@ -7,6 +7,8 @@ sidenav:
     href: index.html
   - text: Programs
     href: programs.html
+  - text: Known Issues
+    href: issues.html
   - text: Disclaimer
     href: disclaimer.html
     active: true

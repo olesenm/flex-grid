@@ -3,6 +3,10 @@ layout:  default
 navname: Requirements
 sidenav:
   - head: Software Requirements
+  - text: Perl
+    href: http://perl.org
+  - text: GridEngine
+    href: http://gridengine.sunsource.net
 ---
 
 ### Software Requirements

@@ -1,8 +1,17 @@
 ---
 layout:  default
-navname: Issues
+navname: About
 sidenav:
-  - head: Known Issues
+  - head: About
+  - text: General
+    href: index.html
+  - text: Programs
+    href: programs.html
+  - text: Known Issues
+    href: issues.html
+    active: true
+  - text: Disclaimer
+    href: disclaimer.html
 ---
 
 ### Handling timeouts continues to be an issue.

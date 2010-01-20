@@ -8,6 +8,8 @@ sidenav:
     active: true
   - text: Programs
     href: programs.html
+  - text: Known Issues
+    href: issues.html
   - text: Disclaimer
     href: disclaimer.html
 ---
@@ -16,7 +18,7 @@ sidenav:
 
 **flex-grid** is a small collection of scripts (mostly Perl) dealing with
 integrating information from an external license manager with the GridEngine
-consumable resources. The main program is **qlicserver** which has been
-documented elsewhere on the
-[gridengine wiki](http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Integration)
+consumable resources. The main program is **qlicserver** which is not only
+documented here, but also on the [gridengine
+wiki](http://wiki.gridengine.info/wiki/index.php/Olesen-FLEXlm-Integration)
 

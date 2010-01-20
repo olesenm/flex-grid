@@ -8,35 +8,32 @@ sidenav:
   - text: Programs
     href: programs.html
     active: true
+  - text: Known Issues
+    href: issues.html
   - text: Disclaimer
     href: disclaimer.html
 ---
 
 ### site/qlicserver
-
 Query availability of floating licenses for the GridEngine.
 
 
 ### site/qloadsensor
-
 An example of calling **qlicserver** via a load-sensor.
 
 
 ### scripts/qlic
-
 An auxiliary service program for displaying the current cached values from
 **qlicserver** in an ascii table. It also provides a convenient means of
 querying and setting resource limits for **qlicserver**.
 
 
 ### scripts/filter-accounting
-
-Extract portions of the GridEngine accounting(5) file according to the
-job end_time.
+Extract portions of the GridEngine accounting(5) file according to the job
+end_time.
 
 
 ### scripts/GridEngine-git-config
-
 Snapshot of the current GridEngine configuration using git for the backend
 storage and tracking mechanism.
 

@@ -3,12 +3,13 @@ layout:  default
 navname: Download
 sidenav:
   - head: Download
+  - text: latest github tar.gz
+    href: http://github.com/olesenm/flex-grid/tarball/master
 ---
-
 
 ### Obtaining the software
 
-Source code is now under GIT version control and is hosted online at github.
+Source code is now under git version control and hosted online at GitHub.
 There are many ways to access, browse, clone or download the codebase,
 including methods for directly downloading .tar.gz or .zip archives for
 people who do not wish to install (or can't use) git clients internally.
@@ -16,7 +17,7 @@ people who do not wish to install (or can't use) git clients internally.
 
 ### Official Releases
 
-Official releases contain &quot;Release YYYY-MM-DD&quot; in the commit
+Official releases contain "Release YYYY-MM-DD" in the commit
 message. When available, they should be made available on the
 [GridEngine Documents & Files](http://gridengine.sunsource.net/servlets/ProjectDocumentList)
 collection as well.
@@ -31,7 +32,7 @@ greatly ease the effort to retain your own changes across version.
 
 ### Single File Snapshot
 
-For people in a hurry, there is a very quick means of grabbing the most
+For people in a hurry, there is also a very quick means of grabbing the most
 recent version of a single file:
 
         wget http://github.com/olesenm/flex-grid/raw/master/site/qlicserver

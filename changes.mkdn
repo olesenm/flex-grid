@@ -3,13 +3,12 @@ layout:  default
 navname: Changes
 sidenav:
   - head: Changes
+  - text: git history
+    href: http://github.com/olesenm/flex-grid/commits/master/
 ---
 
-<b><em>
-  For more details, consult the git history.
-  For releases prior to 2009, the CVS version number is given in brackets.
-</em></b>
-
+> For more details, consult the git history.
+> For releases prior to 2009, the CVS version number is given in brackets.
 
 ---------------
 ### Work-in-Progress 2010-01-20
