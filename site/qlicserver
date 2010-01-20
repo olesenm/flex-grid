@@ -9,7 +9,7 @@ import License;
 import GridEngine;
 import Qconf;
 
-my ($releaseDate) = qw( 2009-10-12 );
+my ($releaseDate) = qw( 2010-01-20 );
 my ( $Path, $Script ) = map { m{^(.+)/([^/]+)$} } $0;    # instead of fileparse
 
 ################################################################################
@@ -158,6 +158,9 @@ params:
   lmutil=STRING
             fully qualified path to lmutil command
 
+  SGE_CLUSTER_NAME=STRING
+            provide cluster name
+
 static params:
   delay=N
             waiting period in seconds between queries in daemon mode
@@ -211,7 +214,7 @@ NOTES:
   mailing list - please do not email the author directly.
 
 version ($releaseDate)
-copyright (c) 2003-09 <Mark.Olesen\@emconTechnologies.com>
+copyright (c) 2003-10 <Mark.Olesen\@emconTechnologies.com>
 
 Licensed and distributed under the Creative Commons
 Attribution-NonCommercial-ShareAlike 3.0 License.
@@ -221,7 +224,7 @@ USAGE
 
 # ------------------------------------------------------------------------------
 my ( %opt, %cmdParam );
-getopts( "hcCdikl:nw", \%opt );    # tolerate faults on unknown options
+getopts( "hcCdikl:nw", \%opt ) or usage();
 $opt{h} and usage();
 my $Debugging;
 
@@ -938,9 +941,21 @@ sub qlic_output {
     my $user = getpwuid $<;
 
     # cluster names/locations
-    my $sgeRoot     = $ENV{SGE_ROOT}         || "";
-    my $sgeCell     = $ENV{SGE_CELL}         || "default";
-    my $clusterName = $ENV{SGE_CLUSTER_NAME} || "default";
+    my $sgeRoot = $ENV{SGE_ROOT} || "";
+    my $sgeCell = $ENV{SGE_CELL} || "default";
+
+    # cluster name is not standard - maybe from env or config file
+    my $clusterName = $ENV{SGE_CLUSTER_NAME} || "";
+
+    # cluster name might just be in the config information
+    if ( exists $config->{-parameter}{SGE_CLUSTER_NAME} ) {
+        my $value = $config->{-parameter}{SGE_CLUSTER_NAME};
+        if ( defined $value and length $value ) {
+            $clusterName = $value;
+        }
+    }
+    $clusterName ||= "default";    ## fallback value
+
 
     # header with comment about possible changes
     print FILE << "XML_TEXT";
