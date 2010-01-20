@@ -170,3 +170,8 @@ Instead of searching the `$PATH` for the `lmutil` command need for the
 FlexLM license server query, this parameter can be used to provide a fully
 qualified path to `lmutil` command.
 
+##### SGE_CLUSTER_NAME=STRING #####
+
+This parameter overrides the identically named environment setting for
+providing a cluster name.
+

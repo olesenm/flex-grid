@@ -12,6 +12,16 @@ sidenav:
 
 
 ---------------
+### Work-in-Progress 2010-01-20
+
+#### More stringent option handling.
+- Emit usage instead of silently ignoring unknown command-line options.
+
+#### SGE_CLUSTER_NAME parameter
+- Use config file parameter SGE_CLUSTER_NAME if it exists.
+
+
+---------------
 ### Release 2009-10-12
 
 #### improved handling of timeouts
