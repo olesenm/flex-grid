@@ -1212,9 +1212,16 @@ PRINT
 
     if ( $opt{C} ) {
         my $qconf = Qconf->query();
+
+        ## ignore complexes that are already known
         delete @{ $config->{-managed} }{ keys %$qconf };
 
         if ( %{ $config->{-managed} } ) {
+            ## initialize all values with zero
+            for ( values %{ $config->{-managed} } ) {
+                $_ = 0;
+            }
+
             print <<'PRINT';
 # initialize remaining managed resources with the following command:
 PRINT
