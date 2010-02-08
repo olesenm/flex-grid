@@ -59,7 +59,7 @@ pass-through git commands:
 * git repository stored here:
   $GIT_DIR
 
-copyright (c) 2009 <Mark.Olesen@emconTechnologies.com>
+copyright (c) 2009-10 <Mark.Olesen@faurecia.com>
 
 USAGE
     exit 1
