@@ -10,14 +10,14 @@
  *
  * @note:           Many thanks to Alexander Hass (http://www.yaml-fuer-drupal.de/) for contribution
  *
- * @copyright       Copyright 2005-2009, Dirk Jesse
+ * @copyright       Copyright 2005-2010, Dirk Jesse
  * @license         CC-A 2.0 (http://creativecommons.org/licenses/by/2.0/),
  *                  YAML-C (http://www.yaml.de/en/license/license-conditions.html)
  * @link            http://www.yaml.de
  * @package         yaml
- * @version         3.1
- * @revision        $Revision: 343 $
- * @lastmodified    $Date: 2009-01-19 23:41:32 +0100 (Mo, 19. Jan 2009) $
+ * @version         3.2.1
+ * @revision        $Revision: 443 $
+ * @lastmodified    $Date: 2009-12-31 18:05:05 +0100 (Do, 31. Dez 2009) $
  */
 
 @media all
@@ -34,4 +34,21 @@
 
   #nav { direction:ltr; }
   #nav * { direction:rtl; }
+
+  /*------------------------------------------------------------------------------------------------------*/
+
+  /**
+   * (en) Optional: Forces right vertical scroll bars
+   * (de) Optional: Erzwingt rechte vertikale Scrollbalken
+   *
+   * @workaround
+   * @affected   IE 5.x/Win, IE6, IE7
+   * @css-for    IE 5.x/Win, IE6, IE7
+   * @valid      yes
+   */
+
+  /*
+  html { direction: ltr; }
+  body { direction: rtl; }
+  */
 }
