@@ -32,16 +32,28 @@
 
 export SGE_ROOT SGE_CELL SGE_ARCH
 
+# Most of these settings would typically be placed in the $SGE_site/environ
+# file which is sourced further below.
+#
+# The SGE_site directory can be used to hold all of our site-specific
+# configuration information, prolog/epilog scripts etc.
+# You may need to adjust this for your setup.
+#
+SGE_common=$SGE_ROOT/$SGE_CELL/common
+SGE_utilbin=$SGE_ROOT/utilbin/$SGE_ARCH
+SGE_site=$SGE_ROOT/$SGE_CELL/site
+export SGE_common SGE_utilbin SGE_site
+
 # -----------------------------------------------------------------------------
 # this script should run as the 'admin_user' registered in 'bootstrap'
 #
 if [ "$UID" -eq 0 ]
 then
-    admin_user=$(sed -ne 's/^admin_user *//p' $SGE_ROOT/$SGE_CELL/common/bootstrap)
+    admin_user=$(sed -ne 's/^admin_user *//p' $SGE_common/bootstrap)
     : ${admin_user:=root}
     if [ $admin_user != root -a $(echo $admin_user | tr "A-Z" "a-z") != none ]
     then
-        exec $SGE_ROOT/utilbin/$SGE_ARCH/adminrun $admin_user $0
+        exec $SGE_utilbin/adminrun $admin_user $0
     fi
 fi
 
@@ -51,12 +63,20 @@ fi
 #   - customize *all* settings there (eg, license server settings)
 #   - ENSURE THAT '$SGE_site' IS DEFINED !!!
 #
-for i in $SGE_ROOT/$SGE_CELL/site/environ; do [ -f $i ] && . $i; done
+# The '$SGE_site/environ' provides a central means of defining relevant
+# environment variables such as the LM_LICENSE_FILE (should point to the
+# licence servers) and adjustments to the PATH (eg, to find the 'lmutil'
+# binary).
+#
+# While many of these adjustments can be set within the qlicserver.config file,
+# the $SGE_site/environ can be useful to source from within job scripts.
+#
+for i in $SGE_site/environ; do [ -f $i ] && . $i; done
 
 # define (unique) cluster name if not already defined
-if [ -z "$SGE_CLUSTER_NAME" -a -r "$SGE_ROOT/$SGE_CELL/common/cluster_name" ]
+if [ -z "$SGE_CLUSTER_NAME" -a -r "$SGE_common/cluster_name" ]
 then
-    SGE_CLUSTER_NAME=$(cat $SGE_ROOT/$SGE_CELL/common/cluster_name 2>/dev/null)
+    SGE_CLUSTER_NAME=$(cat $SGE_common/cluster_name 2>/dev/null)
 fi
 : ${SGE_CLUSTER_NAME:=default}
 export SGE_CLUSTER_NAME
@@ -69,8 +89,9 @@ export SGE_CLUSTER_NAME
 ###############################################################################
 # CUSTOMIZE THESE SETTINGS - iff. required
 
-qlicserver="$SGE_site/qlicserver dir=$SGE_site/cache output=qlicserver.xml qhost=qhost.xml qstat=qstat.xml"
-diskmon="$SGE_site/diskmon.pl"
+qlicserverOutDir="$SGE_site/cache"
+qlicserver="$SGE_site/qlicserver dir=$qlicserverOutDir output=qlicserver.xml qhost=qhost.xml qstat=qstat.xml"
+## diskmon="$SGE_site/diskmon.pl"
 
 # END OF CUSTOMIZE SETTINGS
 ###############################################################################
@@ -109,6 +130,8 @@ act_qmaster()
 #   'k' => blocksize 1000
 #   'K' => blocksize 1024
 #
+# POSIX 'df' allows '-k' for blocksize 1024
+#
 # return 0 if 'df' fails
 df_info()
 {
@@ -140,10 +163,14 @@ else
 fi
 
 unset os_name
-# extract VERSION = 10.2 => suse10.2
 if [ -e "/etc/SuSE-release" ]
 then
+    # extract VERSION = 11.2 => suse11.2
     os_name=$(sed -ne 's/^VERSION *= */suse/p' /etc/SuSE-release 2>/dev/null)
+elif [ -e "/etc/redhat-release" ]
+then
+    # extract Red Hat Enterprise Linux release X ... Update Y => rheX.Y
+    os_name=$(sed -ne 's/^.*release *\([0-9][0-9]*\).*Update *\([0-9][0-9]*\).*$/rhe\1\.\2/p' /etc/redhat-release 2>/dev/null)
 fi
 : ${os_name:=NONE}
 
@@ -257,19 +284,19 @@ do
 
     echo begin                   # begin load report
     host_info                    # host information
-    iidle_info                   # machine's idle time
+##    iidle_info                   # machine's idle time
     echo end                     # end load report
 
     # let the license query run between load reports
     SGE_qmaster=`act_qmaster`    # refresh the name of the qmaster
     if [ "$HOST" = "$SGE_qmaster" ]
     then
-        $qlicserver 2>> qloadsensor.err
-##        $diskmon -m 2>> qloadsensor.err
+        $qlicserver 2>> $qlicserverOutDir/qloadsensor.err
+##        $diskmon -m 2>> $qlicserverOutDir/qloadsensor.err
         # force rescheduling of express jobs
-        ## $SGE_site/qxprs >/dev/null 2>&1
+##        $SGE_site/qxprs >/dev/null 2>&1
 ##    else
-##        $diskmon 2>> qloadsensor.err
+##        $diskmon 2>> $qlicserverOutDir/qloadsensor.err
     fi
 done
 exit 0    # we never get here, but just in case
