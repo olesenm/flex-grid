@@ -108,7 +108,7 @@ versions for the same application (eg, maintained vs. non-maintained
 licences). For these cases, it is likely useful to specify an additional
 `<derived>` resource to recombine the individual features.
 
-            <derived name="app">
+            <derived name="app" note="combined local/global licenses">
               <element>app1</element>
               <element>app2</element>
             </derived>
@@ -120,7 +120,8 @@ licences). For these cases, it is likely useful to specify an additional
 
 Derived resources are combined from sub-elements and inherit the limits from
 their sub-elements, but can also be given an explicit limit of their own.
-The most restrictive limit is always taken.
+The most restrictive limit is always taken. The optional \[note\] attribute
+can be used to pass through some useful information for ourselves.
 
           </resources>
         </qlicserverConfig>
