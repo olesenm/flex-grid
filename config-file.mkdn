@@ -126,3 +126,21 @@ can be used to pass through some useful information for ourselves.
           </resources>
         </qlicserverConfig>
 
+### Additional Notes
+
+Whitespace is treated equivalently to colons when parsing the
+`LM_LICENSE_FILE` parameter. This allows for easier reading and
+editing:
+
+        <param name="LM_LICENSE_FILE">
+            port@server1
+            port@server2
+            <!-- disabled for now
+                port3@server3
+            -->
+            <!-- license triad -->
+            {port@triad1:port@triad2:port@triad3}
+        </param>
+
+As a general side-effect, the license triads are queried before other
+normal servers.
