@@ -9,7 +9,7 @@ import License;
 import GridEngine;
 import Qconf;
 
-my ($releaseDate) = qw( 2010-01-20 );
+my ($releaseDate) = qw( 2011-02-09 );
 my ( $Path, $Script ) = map { m{^(.+)/([^/]+)$} } $0;    # instead of fileparse
 
 ################################################################################
@@ -78,8 +78,6 @@ my $config = {
 
   <!-- tracked applications -->
    <resource name="gtise"   served="GTise"   type="track"/>
-   <resource name="hexa"    served="aihexa"  type="track"/>
-   <resource name="med"     served="aimed"   type="track"/>
    <resource name="proam"   served="proam"   type="track"/>
    <resource name="prostar" served="prostar" type="track"/>
 
@@ -277,7 +275,6 @@ sub parseXMLattrib {
 
     %attr;
 }
-
 
 #
 # resolve output file name from the config->{-parameter}
@@ -956,7 +953,6 @@ sub qlic_output {
     }
     $clusterName ||= "default";    ## fallback value
 
-
     # header with comment about possible changes
     print FILE << "XML_TEXT";
 <?xml version="1.0"?>
@@ -1005,7 +1001,9 @@ XML_TEXT
       qq{ <resources>\n};
 
     for my $name ( sort keys %{ $config->{-derived} } ) {
-        my @elem = @{ $config->{-derived}{$name}{element} };
+        my $derived = $config->{-derived}{$name};
+
+        my @elem = @{ $derived->{element} };
         if (@elem) {
             print FILE +(
                 qq{  <derived name="$name">\n},
@@ -1044,18 +1042,29 @@ XML_TEXT
 
         $_ >= 0 or $_ = 0 for ( $free, $managed );    # should not be required
 
-        # transcribe directly from original data structure
-        if ( exists $config->{-resources}{$resource} ) {
-            my $rc = $config->{-resources}{$resource};
+        ## transcribe some attributes directly from original data structure
+        ## whenever possible
+        {
+            my $rc =
+              exists $config->{-resources}{$resource}
+              ? $config->{-resources}{$resource}
+              : exists $config->{-derived}{$resource}
+              ? $config->{-derived}{$resource}
+              : exists $config->{-intern}{$resource}
+              ? $config->{-intern}{$resource}
+              : undef;
 
-            for (qw( served from note )) {
-                if ( exists $rc->{$_} ) {
-                    $output{$_} = $rc->{$_};
+            if ( ref $rc ) {
+                for (qw( served from note )) {
+                    if ( exists $rc->{$_} ) {
+                        $output{$_} = $rc->{$_};
+                    }
                 }
             }
         }
 
         print FILE qq{  <resource};
+        ## report these attributes (if defined)
         for (
             [ name    => $output{name} ],
             [ served  => $output{served} ],
@@ -1604,7 +1613,7 @@ sub cmd {
     local $SIG{__DIE__} = sub { kill TERM => $pid if $pid; };
 
     eval {
-        local $SIG{ALRM} = sub { die "TIMEOUT\n" };         # NB: '\n' required
+        local $SIG{ALRM} = sub { die "TIMEOUT\n" };    # NB: '\n' required
         alarm $timeout if $timeout;
         @command or die "$caller: Shell->cmd with an undefined query\n";
 
@@ -1627,7 +1636,8 @@ sub cmd {
 
     if ($@) {
         if ( $@ =~ /^TIMEOUT/ ) {
-            warn "(WW) TIMEOUT after $timeout seconds on '@command'\n" if $report;
+            warn "(WW) TIMEOUT after $timeout seconds on '@command'\n"
+              if $report;
             return undef;
         }
         else {
@@ -2064,7 +2074,7 @@ sub qhost {
     # record qhost xml output to a file
     defined $cacheFile and length $cacheFile or return;
 
-    my @args = qw( -q -j -xml );
+    my @args  = qw( -q -j -xml );
     my $lines = GridEngine->bin( qhost => @args ) or return;
 
     # replace xmlns= with xmlns:xsd=
@@ -2075,7 +2085,8 @@ sub qhost {
     # inject the query date and arguments as processing instructions
     # newer perl can use \K for a variable-length look behind
     my $date = POSIX::strftime( "%FT%T", localtime );
-    $lines =~ s{^(<\?xml[^\?]+\?>)}{$1\n<?qhost date="$date"?>\n<?qhost command="@args"?>};
+    $lines =~
+s{^(<\?xml[^\?]+\?>)}{$1\n<?qhost date="$date"?>\n<?qhost command="@args"?>};
 
     GridEngine->writeCache( $cacheFile, $lines );
 }
@@ -2131,13 +2142,14 @@ sub qstat {
       or return $status;
 
     # optionally record qstat xml output to a file
-    if ($cacheFile)
-    {
+    if ($cacheFile) {
+
         # document the request without affecting the xml structure:
         # inject the query date and arguments as processing instructions
         # newer perl can use \K for a variable-length look behind
         my $date = POSIX::strftime( "%FT%T", localtime );
-        $lines =~ s{^(<\?xml[^\?]+\?>)}{$1\n<?qstat date="$date"?>\n<?qstat args="@args"?>};
+        $lines =~
+s{^(<\?xml[^\?]+\?>)}{$1\n<?qstat date="$date"?>\n<?qstat args="@args"?>};
 
         GridEngine->writeCache( $cacheFile, $lines );
     }

@@ -25,7 +25,7 @@
    <resource name="starjob" served="starpar" type="job" urgency="100" note="STAR-CD parallel starter"/>
    <resource name="starp" served="hpcdomains" note="STAR-CD parallel"/>
    <resource name="stars" served="starsuite" limit="2" note="STAR-CD serial"/>
-   <derived name="starcd" urgency="100">
+   <derived name="starcd" urgency="100" note="overall combination of serial/parallel licenses">
     <element>starp</element>
     <element>stars</element>
    </derived>
