@@ -5,9 +5,6 @@ use POSIX qw( );
 
 ( my $Script = $0 ) =~ s{^.*/}{};
 
-my $time = time;
-my $date = POSIX::strftime( "%F %T", localtime $time );
-
 $ENV{SGE_ROOT} or die "Error $Script: \$SGE_ROOT is not set\n";
 $ENV{SGE_CELL} ||= "default";    # sge_cell
 
@@ -19,7 +16,35 @@ my $config = {
     -limits => ( $siteLocation || '' ) . "/" . "qlicserver.limits",
 };
 
-# ------------------------------------------------------------------------
+my $time = time;
+my $date = POSIX::strftime( "%F %T", localtime $time );
+
+# -----------------------------------------------------------------------------
+# Copyright 2003-2011 Mark Olesen
+#
+#     This file is part of flex-grid.
+#
+#     flex-grid is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU Affero General Public License as published by the
+#     Free Software Foundation, either version 3 of the License,
+#     or (at your option) any later version.
+#
+#     flex-grid is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#     or FITNESS FOR A PARTICULAR PURPOSE.
+#     See the GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with flex-grid. If not, see <http://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+# Script
+#     qlic
+#
+# Description
+#     Extract/display information for the GridEngine license cache
+#     Adjust/display information for the license limits
+#
+# -----------------------------------------------------------------------------
 # utils
 
 #
@@ -334,11 +359,9 @@ with options:
 * adjust / display information for the license limits
   $config->{-limits}
 
-copyright (c) 2003-10 <Mark.Olesen\@faurecia.com>
+Copyright (c) 2003-2011 <Mark.Olesen\@faurecia.com>
 
-Licensed and distributed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 3.0 License.
-http://creativecommons.org/licenses/by-nc-sa/3.0
+Distributed under the terms of the GNU Affero General Public License, version 3
 USAGE
 }
 

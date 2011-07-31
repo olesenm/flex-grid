@@ -1,32 +1,55 @@
 #!/bin/sh
-#
-# Snapshot of the current GridEngine configuration using git for the
-# backend storage and tracking mechanism.
-#
-# Should normally be called via a cronjob.
-#
-# Following Edward Dale's idea:
-# http://scompt.com/blog/archives/2009/10/13/versioned-grid-engine-configuration
-# but using git for the backend
-#
-# initialize:
-#
-# git --git-dir=$GIT_DIR init --bare --shared=world
-#
-# Note: we use Perl for inplace editing since some versions of sed have
-#       problems with this task.
-################################################################################
 ################################################################################
 # CUSTOMIZE THESE SETTINGS TO MATCH YOUR REQUIREMENTS:
 
 SGE_ROOT=/opt/grid
 SGE_CELL=default
-GIT_DIR=/data/cfd/share/git-repo/gridengine-config.git
+GIT_DIR=/data/caeapp/cfd/local/git-repo/gridengine-config.git
 
-#
 # END OF CUSTOMIZE SETTINGS
 ################################################################################
-################################################################################
+# -----------------------------------------------------------------------------
+# Copyright 2009-2011 Mark Olesen
+#
+#     This file is part of flex-grid.
+#
+#     flex-grid is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU Affero General Public License as published by the
+#     Free Software Foundation, either version 3 of the License,
+#     or (at your option) any later version.
+#
+#     flex-grid is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#     or FITNESS FOR A PARTICULAR PURPOSE.
+#     See the GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with flex-grid. If not, see <http://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+# Script
+#     GridEngine-git-config
+#
+# Description
+#     Extract/display information for the GridEngine license cache
+#     Adjust/display information for the license limits
+#
+#     Snapshot of the current GridEngine configuration using git for the
+#     backend storage and tracking mechanism.
+#
+#     Should normally be called via a cronjob.
+#
+#     Following Edward Dale's idea:
+#     http://scompt.com/blog/archives/2009/10/13/versioned-grid-engine-configuration
+#     but using git for the backend
+#
+#     initialize:
+#
+#         git --git-dir=$GIT_DIR init --bare --shared=world
+#
+# Notes
+#     we use Perl for inplace editing since some versions of sed have
+#     problems with this task.
+# -----------------------------------------------------------------------------
 Script=${0##.*/}
 saveScript="$SGE_ROOT/util/upgrade_modules/save_sge_config.sh"
 export SGE_ROOT SGE_CELL GIT_DIR
@@ -59,8 +82,9 @@ pass-through git commands:
 * git repository stored here:
   $GIT_DIR
 
-copyright (c) 2009-10 <Mark.Olesen@faurecia.com>
+copyright (c) 2009-2011 <Mark.Olesen@faurecia.com>
 
+Distributed under the terms of the GNU Affero General Public License, version 3
 USAGE
     exit 1
 }

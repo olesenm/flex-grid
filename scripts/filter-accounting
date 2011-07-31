@@ -2,11 +2,34 @@
 use strict;
 use Getopt::Std qw( getopts );
 use Time::Local qw( timelocal );
-
-my ($releaseDate) = qw( 2009-10-02 );
-
 ( my $Script = $0 ) =~ s{^.*/}{};
-# -------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Copyright 2009-2011 Mark Olesen
+#
+#     This file is part of flex-grid.
+#
+#     flex-grid is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU Affero General Public License as published by the
+#     Free Software Foundation, either version 3 of the License,
+#     or (at your option) any later version.
+#
+#     flex-grid is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#     or FITNESS FOR A PARTICULAR PURPOSE.
+#     See the GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with flex-grid. If not, see <http://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+# Script
+#     filter-accounting
+#
+# Description
+#     Extract portions of the GridEngine accounting(5) file according to the
+#     job end_time.
+#
+# -----------------------------------------------------------------------------
 sub usage {
     $! = 0;    # clean exit
     warn "@_\n" if @_;
@@ -29,12 +52,9 @@ extracts the accounting for jobs that finished running in 2008.
 The value of 2 A.M. avoids problems that daylight savings time might
 otherwise cause.
 
-version ($releaseDate)
-copyright (c) 2009 <Mark.Olesen\@faurecia.com>
+copyright (c) 2009-2011 <Mark.Olesen\@faurecia.com>
 
-Licensed and distributed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 3.0 License.
-http://creativecommons.org/licenses/by-nc-sa/3.0
+Distributed under the terms of the GNU Affero General Public License, version 3
 USAGE
 }
 

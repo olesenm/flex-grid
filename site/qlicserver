@@ -92,7 +92,29 @@ my $config = {
 # END OF CUSTOMIZE SETTINGS
 ################################################################################
 ################################################################################
-
+# -----------------------------------------------------------------------------
+# Copyright 2003-2011 Mark Olesen
+#
+#     This file is part of flex-grid.
+#
+#     flex-grid is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU Affero General Public License as published by the
+#     Free Software Foundation, either version 3 of the License,
+#     or (at your option) any later version.
+#
+#     flex-grid is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#     or FITNESS FOR A PARTICULAR PURPOSE.
+#     See the GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with flex-grid. If not, see <http://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+# Script
+#     qlicserver
+#
+# Description
+#     Query availability of floating licenses for the GridEngine.
 # ------------------------------------------------------------------------------
 sub usage {
     $! = 0;    # clean exit
@@ -212,11 +234,9 @@ NOTES:
   mailing list - please do not email the author directly.
 
 version ($releaseDate)
-copyright (c) 2003-10 <Mark.Olesen\@faurecia.com>
+copyright (c) 2003-2011 <Mark.Olesen\@faurecia.com>
 
-Licensed and distributed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 3.0 License.
-http://creativecommons.org/licenses/by-nc-sa/3.0
+Distributed under the terms of the GNU Affero General Public License, version 3
 USAGE
 }
 

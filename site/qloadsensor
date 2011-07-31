@@ -1,22 +1,37 @@
 #!/bin/sh
+# -----------------------------------------------------------------------------
+# Copyright 2003-2011 Mark Olesen
 #
-# qloadsensor:
-# load sensor for particular file systems and floating licenses
+#     This file is part of flex-grid.
 #
-# NB:
-#    1) add the new complexes (via qconf -mc) for the following:
-#       * complex configurations managed in the shell script
+#     flex-grid is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU Affero General Public License as published by the
+#     Free Software Foundation, either version 3 of the License,
+#     or (at your option) any later version.
+#
+#     flex-grid is distributed in the hope that it will be useful, but
+#     WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#     or FITNESS FOR A PARTICULAR PURPOSE.
+#     See the GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with flex-grid. If not, see <http://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
+# Script
+#     qloadsensor
+#
+# Description
+#     load sensor for particular file systems and floating licenses
+#
+# Note
+#     1) add the new complexes (via qconf -mc) for the following:
+#         * complex configurations managed in the shell script
 #           eg, 'perl -x qloadsensor'
-#       * complex consumables managed global
+#         * complex consumables managed global
 #           eg, 'qlicserver -c'
-#    2) initialize the global complex consumables to be managed
+#     2) initialize the global complex consumables to be managed
 #           eg, 'qlicserver -C'
 #
-# copyright (c) 2003-10 <Mark.Olesen@faurecia.com>
-#
-# Licensed and distributed under the Creative Commons
-# Attribution-NonCommercial-ShareAlike 3.0 License.
-# http://creativecommons.org/licenses/by-nc-sa/3.0
 # -----------------------------------------------------------------------------
 
 #
