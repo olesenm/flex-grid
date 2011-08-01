@@ -9,7 +9,7 @@ import License;
 import GridEngine;
 import Qconf;
 
-my ($releaseDate) = qw( 2011-02-09 );
+my ($releaseDate) = qw( 2011-08-01 );
 my ( $Path, $Script ) = map { m{^(.+)/([^/]+)$} } $0;    # instead of fileparse
 
 ################################################################################
@@ -1720,27 +1720,36 @@ BEGIN {
         my $value = shift;
         @servers = ();
 
-        if ($value) {
-            my %index;
-            my $index = 0;
+        $value or return;
 
-            # get grouped server queries
-            while ( $value =~ s/\{(.*?)\}// ) {
-                if ($1) {
-                    push @servers, $1;
-                    $index++;
-                }
+        my %index;
+        my $index = 0;
+        while ( length $value ) {
+            $value =~ s{^[\s:;]+}{};
+            if ( $value =~ s{^(\{[^\}]*\})}{} ) {
+                ## get grouped (triad) server queries
+                my $triad = $1;
+                push @servers, $triad;
+                $index++;
             }
+            elsif ( $value =~ s{^([^\s:;{}]+)}{} ) {
+                my $srv = $1;
+                ## port@server or @server
+                ( my $name = $srv ) =~ s{^\d*\@}{};
 
-            for ( map { s{[:;]+}{ }g; split } $value ) {
-                ( my $name = $_ ) =~ s/^\d*\@//;    ## port@server or @server
+                ## group by server name
+                $name =~ s{^\d*\@}{};
                 if ( defined $index{$name} ) {
-                    $servers[ $index{$name} ] .= ":$_";
+                    $servers[ $index{$name} ] .= ":$srv";
                 }
                 else {
                     $index{$name} = $index++;
-                    push @servers, $_;
+                    push @servers, $srv;
                 }
+            }
+            else {
+                warn "Error while parsing server: $value\n" if length $value;
+                last;
             }
         }
     }
@@ -1814,6 +1823,7 @@ sub query_server {
     my $license = {};
 
     $server ||= join( ":" => @servers );
+    $server =~ s/[{}]+//g;    ## strip out braces (from triad grouping)
 
     my @lines = Shell->cmd( $cmd, @args, $server );
 
@@ -1910,11 +1920,20 @@ sub query {
         if ( defined $thread ) {
             my ( $lookup, %server );
 
-            # group the servers, avoid touching the alias
-            for ( map { s{[:;]+}{ }g; split } ( my $srv = $server ) ) {
-                ( $lookup = $_ ) =~ s/^\d*\@//;    ## port@server or @server
-                $lookup = lc $lookup;
+            if ( $server =~ m{^\{([^\s:;\}]+)} ) {
+                ## handle grouped (triad) server queries specially
+                ## use the name of the first server only
+                $lookup = lc $1;
+                $lookup =~ s/^\d*\@//;    ## port@server or @server
                 $server{$lookup}++;
+            }
+            else {
+                ## define a lookup for this thread, avoid touching the alias
+                for ( map { s{[:;]+}{ }g; split } ( my $srv = $server ) ) {
+                    ( $lookup = $_ ) =~ s/^\d*\@//;    ## port@server or @server
+                    $lookup = lc $lookup;
+                    $server{$lookup}++;
+                }
             }
 
             keys %server == 1 or undef $lookup;
@@ -1932,9 +1951,16 @@ sub query {
         my ($hash) = $thread->join();
 
         # establish possible server-specific remapping
+        # also allow short names, but must be consistent everywhere
         my $remap = {};
-        if ( defined $lookup and exists $mapFrom->{$lookup} ) {
-            $remap = $mapFrom->{$lookup};
+        if ( defined $lookup ) {
+            ( my $short = $lookup ) =~ s{\..*}{};
+
+            if ( exists $mapFrom->{$lookup} ) {
+                $remap = $mapFrom->{$lookup};
+            } elsif (exists $mapFrom->{$short} ) {
+                $remap = $mapFrom->{$short};
+            }
         }
 
         for ( keys %$hash ) {
