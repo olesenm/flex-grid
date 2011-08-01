@@ -11,13 +11,16 @@ sidenav:
 > For releases prior to 2009, the CVS version number is given in brackets.
 
 ---------------
-### Work-in-Progress 2011-02-09
+### Release 2011-08-01
+
+#### Improvement handling of license trias
+- support the "from" mapping for license triads
+  - uses the name of the first triad server only
+  - the "from" name should be consistently in using long or short names
+- avoid re-shuffling server order when a triad is present
 
 #### Minor output tweaks
 - Also emit `note` attribute for derived elements
-
----------------
-### Work-in-Progress 2010-02-03
 
 #### More stringent option handling.
 - Emit usage instead of silently ignoring unknown command-line options.
