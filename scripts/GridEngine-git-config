@@ -4,7 +4,7 @@
 
 SGE_ROOT=/opt/grid
 SGE_CELL=default
-GIT_DIR=/data/caeapp/cfd/local/git-repo/gridengine-config.git
+GIT_DIR=/data/caeapp/local/cfd/git-repo/gridengine-config.git
 
 # END OF CUSTOMIZE SETTINGS
 ################################################################################
