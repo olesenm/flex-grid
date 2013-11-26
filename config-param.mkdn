@@ -138,7 +138,7 @@ the output to the stdout:
 This parameter specifies that a supplementary GridEngine `qhost` command be
 executed and the results saved to a file. This parameter is likely only
 useful when the generated data can be fed to some other diagnostic tool or
-web interface such as [xml-qstat](http://olesenm.github.com/xml-qstat/).
+web interface such as [xml-qstat](http://olesenm.github.io/xml-qstat/).
 
 #### qstat=FILE ####
 
